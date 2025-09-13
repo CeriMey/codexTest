@@ -32,12 +32,23 @@ Les exemples fournis couvrent quelques éléments de télémétrie et de détect
 - `SENSOR_NORTH_VELOCITY`
 - `CORNER_LAT_PT1_FULL`
 - `CORNER_LON_PT1_FULL`
+- `CLASSIFICATION` (ST0102)
+- `CLASSIFICATION_SYSTEM` (ST0102)
+- `VMTI_TARGET_ID` (ST0903)
+- `VMTI_DETECTION_STATUS` (ST0903)
 
 D'autres balises ST0601 numériques comme l'altitude/latitude de plate-forme
 alternative, les hauteurs ellipsoïdales ou les angles d'attitude complets sont
 également disponibles. Les champs nécessitant des ensembles imbriqués ou des
 chaînes de caractères (Tag 66, 70, 73, 74, 81, 94, 95, etc.) restent hors du
 cadre de cet exemple minimaliste.
+
+## Couche STANAG 4609
+
+La fonction `stanag::create_dataset` assemble automatiquement un `KLVSet`
+à partir d'un vecteur de couples UL/valeur. Cela facilite la création d'un
+jeu de données STANAG 4609 à partir des balises enregistrées des normes
+ST0102, ST0601 et ST0903.
 
 ## Références
 
