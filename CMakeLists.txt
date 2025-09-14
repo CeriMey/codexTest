@@ -25,6 +25,7 @@ add_library(klv STATIC
     st0601/st0601.h
     st0903/st0903.h
     core/klv_macros.h
+    core/st_common.h
 )
 
 target_include_directories(klv PUBLIC

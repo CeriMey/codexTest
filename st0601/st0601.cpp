@@ -1,1218 +1,358 @@
 #include "st0601.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <limits>
+#include <vector>
 
 namespace misb {
 namespace st0601 {
 
-// Dummy UL values for demonstration purposes
-const UL PLATFORM_HEADING_ANGLE   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00};
-const UL UNIX_TIMESTAMP            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0xFF,0x00,0x01};
-const UL TARGET_LOCATION_ELEVATION = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x01};
-const UL TARGET_TRACK_GATE_WIDTH   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x02};
-const UL TARGET_TRACK_GATE_HEIGHT  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x03};
-const UL TARGET_TRACK_GATE_X       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x04};
-const UL TARGET_TRACK_GATE_Y       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x05};
-const UL SENSOR_LATITUDE           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x06};
-const UL SENSOR_LONGITUDE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x07};
-const UL SENSOR_HORIZONTAL_FOV     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x08};
-const UL SENSOR_VERTICAL_FOV       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x09};
-const UL FRAME_CENTER_LATITUDE     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0A};
-const UL FRAME_CENTER_LONGITUDE    = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0B};
-const UL FRAME_CENTER_ELEVATION    = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0C};
-const UL OFFSET_CORNER_LAT_PT1     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0D};
-const UL OFFSET_CORNER_LON_PT1     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0E};
-const UL OFFSET_CORNER_LAT_PT2     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x0F};
-const UL OFFSET_CORNER_LON_PT2     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x10};
-const UL OFFSET_CORNER_LAT_PT3     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x11};
-const UL OFFSET_CORNER_LON_PT3     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x12};
-const UL OFFSET_CORNER_LAT_PT4     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x13};
-const UL OFFSET_CORNER_LON_PT4     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x14};
-const UL ICING_DETECTED            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x15};
-const UL WIND_DIRECTION            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x16};
-const UL WIND_SPEED                = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x17};
-const UL STATIC_PRESSURE           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x18};
-const UL DENSITY_ALTITUDE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x19};
-const UL OUTSIDE_AIR_TEMPERATURE   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x1A};
-const UL TARGET_LATITUDE           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x1B};
-const UL TARGET_LONGITUDE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x1C};
-const UL TARGET_ERROR_CE90         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x1E};
-const UL TARGET_ERROR_LE90         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x1F};
-const UL GENERIC_FLAG_DATA01       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x20};
-const UL DIFFERENTIAL_PRESSURE     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x22};
-const UL PLATFORM_ANGLE_OF_ATTACK  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x23};
-const UL PLATFORM_VERTICAL_SPEED   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x24};
-const UL PLATFORM_SIDESLIP_ANGLE   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x25};
-const UL AIRFIELD_BAROMETRIC_PRESSURE = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x26};
-const UL AIRFIELD_ELEVATION        = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x27};
-const UL RELATIVE_HUMIDITY         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x28};
-const UL PLATFORM_GROUND_SPEED     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x29};
-const UL GROUND_RANGE              = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2A};
-const UL PLATFORM_FUEL_REMAINING   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2B};
-const UL WEAPON_LOAD               = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2C};
-const UL WEAPON_FIRED              = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2D};
-const UL LASER_PRF_CODE            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2E};
-const UL SENSOR_FOV_NAME           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x2F};
-const UL PLATFORM_MAGNETIC_HEADING = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x30};
-const UL UAS_LS_VERSION_NUMBER     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x31};
-const UL ALTERNATE_PLATFORM_LATITUDE  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x33};
-const UL ALTERNATE_PLATFORM_LONGITUDE = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x34};
-const UL ALTERNATE_PLATFORM_ALTITUDE  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x35};
-const UL ALTERNATE_PLATFORM_HEADING   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x37};
-const UL EVENT_START_TIME_UTC      = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x38};
-const UL SENSOR_ELLIPSOID_HEIGHT   = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x3B};
-const UL ALTERNATE_PLATFORM_ELLIPSOID_HEIGHT = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x3C};
-const UL OPERATIONAL_MODE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x3D};
-const UL FRAME_CENTER_HAE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x3E};
-const UL SENSOR_NORTH_VELOCITY     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x3F};
-const UL SENSOR_EAST_VELOCITY      = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x40};
-const UL CORNER_LAT_PT1_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x42};
-const UL CORNER_LON_PT1_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x43};
-const UL CORNER_LAT_PT2_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x44};
-const UL CORNER_LON_PT2_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x45};
-const UL CORNER_LAT_PT3_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x46};
-const UL CORNER_LON_PT3_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x47};
-const UL CORNER_LAT_PT4_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x48};
-const UL CORNER_LON_PT4_FULL       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x49};
-const UL VMTI_LOCAL_SET            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4A};
-const UL PLATFORM_PITCH_ANGLE_FULL = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4B};
-const UL PLATFORM_ROLL_ANGLE_FULL  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4C};
-const UL PLATFORM_AOA_FULL         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4D};
-const UL PLATFORM_SIDESLIP_ANGLE_FULL = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4E};
-const UL MIIS_CORE_IDENTIFIER      = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x4F};
-const UL SAR_MOTION_IMAGERY_LOCAL_SET = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x50};
-const UL TARGET_WIDTH_EXTENDED     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x51};
-const UL RANGE_IMAGE_LOCAL_SET     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x52};
-const UL GEO_REGISTRATION_LOCAL_SET = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x53};
-const UL COMPOSITE_IMAGING_LOCAL_SET = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x54};
-const UL SEGMENT_LOCAL_SET         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x55};
-const UL AMEND_LOCAL_SET           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x56};
-const UL SDCC_FLP                  = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x57};
-const UL DENSITY_ALTITUDE_EXTENDED = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x58};
-const UL SENSOR_ELLIPSOID_HEIGHT_EXTENDED = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x59};
-const UL ALTERNATE_PLATFORM_ELLIPSOID_HEIGHT_EXTENDED = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5A};
-const UL STREAM_DESIGNATOR         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5B};
-const UL OPERATIONAL_BASE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5C};
-const UL BROADCAST_SOURCE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5D};
-const UL RANGE_TO_RECOVERY_LOCATION = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5E};
-const UL TIME_AIRBORNE             = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x5F};
-const UL PROPULSION_UNIT_SPEED     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x60};
-const UL PLATFORM_COURSE_ANGLE     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x61};
-const UL ALTITUDE_AGL              = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x62};
-const UL RADAR_ALTIMETER           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x63};
-const UL CONTROL_COMMAND           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x64};
-const UL CONTROL_COMMAND_VERIFICATION_LIST = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x65};
-const UL SENSOR_AZIMUTH_RATE       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x66};
-const UL SENSOR_ELEVATION_RATE     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x67};
-const UL SENSOR_ROLL_RATE          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x68};
-const UL ON_BOARD_MI_STORAGE_PERCENT_FULL = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x69};
-const UL ACTIVE_WAVELENGTH_LIST    = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6A};
-const UL COUNTRY_CODES             = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6B};
-const UL NUMBER_OF_NAVSATS_IN_VIEW = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6C};
-const UL POSITIONING_METHOD_SOURCE = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6D};
-const UL PLATFORM_STATUS           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6E};
-const UL SENSOR_CONTROL_MODE       = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x6F};
-const UL SENSOR_FRAME_RATE_PACK    = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x70};
-const UL WAVELENGTHS_LIST          = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x71};
-const UL TARGET_ID                 = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x72};
-const UL AIRBASE_LOCATIONS         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x73};
-const UL TAKE_OFF_TIME             = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x74};
-const UL TRANSMISSION_FREQUENCY    = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x75};
-const UL ON_BOARD_MI_STORAGE_CAPACITY = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x76};
-const UL ZOOM_PERCENTAGE           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x77};
-const UL COMMUNICATIONS_METHOD     = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x78};
-const UL LEAP_SECONDS              = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x79};
-const UL CORRECTION_OFFSET         = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x7A};
-const UL PAYLOAD_LIST              = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x7B};
-const UL ACTIVE_PAYLOADS           = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x7C};
-const UL WEAPONS_STORES            = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x7D};
-const UL WAYPOINT_LIST             = {0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x7E};
+namespace detail {
 
-void register_st0601(KLVRegistry& reg) {
-    // Unix Timestamp: microseconds since epoch -> uint64
-    reg.register_ul(UNIX_TIMESTAMP, {
-        [](double micros) {
-            uint64_t raw = static_cast<uint64_t>(micros);
-            std::vector<uint8_t> out(8);
-            for (int i = 0; i < 8; ++i) {
-                out[7 - i] = static_cast<uint8_t>(raw >> (i * 8));
-            }
-            return out;
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 8) return 0.0;
-            uint64_t raw = 0;
-            for (uint8_t b : bytes) {
-                raw = (raw << 8) | b;
-            }
-            return static_cast<double>(raw);
-        }
-    });
-    // Platform Heading Angle: degrees [0,360] -> uint16
-    reg.register_ul(PLATFORM_HEADING_ANGLE, {
-        [](double degrees) {
-            uint16_t raw = static_cast<uint16_t>((degrees / 360.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 360.0;
-        }
-    });
+template <typename T>
+constexpr T clamp(T v, T lo, T hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
 
-    // Target Location Elevation: meters [-900,19000] -> uint16
-    reg.register_ul(TARGET_LOCATION_ELEVATION, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
+struct Codec {
+    std::function<std::vector<uint8_t>(double)> enc;
+    std::function<double(const std::vector<uint8_t>&)> dec;
+};
 
-    // Target Track Gate Width: pixels (step 2) -> uint8
-    reg.register_ul(TARGET_TRACK_GATE_WIDTH, {
-        [](double pixels) {
-            uint8_t raw = static_cast<uint8_t>(pixels / 2.0);
-            return std::vector<uint8_t>{raw};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return bytes[0] * 2.0;
-        }
-    });
+using misb::pack_be;
+using misb::unpack_be;
 
-    // Target Track Gate Height: pixels (step 2) -> uint8
-    reg.register_ul(TARGET_TRACK_GATE_HEIGHT, {
-        [](double pixels) {
-            uint8_t raw = static_cast<uint8_t>(pixels / 2.0);
-            return std::vector<uint8_t>{raw};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return bytes[0] * 2.0;
-        }
-    });
+constexpr UL make_ul(uint8_t tag) {
+    return make_st_ul(ST_ID, tag);
+}
 
-    // Target Track Gate Center X: pixels [0,65535] -> uint16
-    reg.register_ul(TARGET_TRACK_GATE_X, {
-        [](double pixels) {
-            uint16_t raw = static_cast<uint16_t>(pixels);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
+inline Codec codec_u16_linear(double min, double max) {
+    return Codec{
+        [=](double v) {
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double clamped = clamp(v, lo, hi);
+            const double span = hi - lo;
+            const uint16_t raw = static_cast<uint16_t>(std::lround((clamped - lo) * (65535.0 / span)));
+            return pack_be<uint16_t>(raw);
         },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return static_cast<double>(raw);
+        [=](const std::vector<uint8_t>& bytes) {
+            uint16_t raw{};
+            if (!unpack_be<uint16_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double span = hi - lo;
+            return lo + (static_cast<double>(raw) * (span / 65535.0));
         }
-    });
-
-    // Target Track Gate Center Y: pixels [0,65535] -> uint16
-    reg.register_ul(TARGET_TRACK_GATE_Y, {
-        [](double pixels) {
-            uint16_t raw = static_cast<uint16_t>(pixels);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return static_cast<double>(raw);
-        }
-    });
-
-    // Sensor Latitude: degrees [-90,+90] -> int32
-    reg.register_ul(SENSOR_LATITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Sensor Longitude: degrees [-180,+180] -> int32
-    reg.register_ul(SENSOR_LONGITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Sensor Horizontal FOV: degrees [0,180] -> uint16
-    reg.register_ul(SENSOR_HORIZONTAL_FOV, {
-        [](double degrees) {
-            uint16_t raw = static_cast<uint16_t>((degrees / 180.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 180.0;
-        }
-    });
-
-    // Sensor Vertical FOV: degrees [0,180] -> uint16
-    reg.register_ul(SENSOR_VERTICAL_FOV, {
-        [](double degrees) {
-            uint16_t raw = static_cast<uint16_t>((degrees / 180.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 180.0;
-        }
-    });
-
-    // Frame Center Latitude: degrees [-90,+90] -> int32
-    reg.register_ul(FRAME_CENTER_LATITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Frame Center Longitude: degrees [-180,+180] -> int32
-    reg.register_ul(FRAME_CENTER_LONGITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Frame Center Elevation: meters [-900,19000] -> uint16
-    reg.register_ul(FRAME_CENTER_ELEVATION, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    auto encode_offset = [](double deg) {
-        int16_t raw = static_cast<int16_t>((deg / 0.15) * 65534.0);
-        return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
     };
-    auto decode_offset = [](const std::vector<uint8_t>& bytes) {
-        if (bytes.size() != 2) return 0.0;
-        int16_t raw = static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
-        return (raw / 65534.0) * 0.15;
+}
+
+inline Codec codec_u32_linear(double min, double max) {
+    return Codec{
+        [=](double v) {
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double clamped = clamp(v, lo, hi);
+            const double span = hi - lo;
+            const uint32_t raw = static_cast<uint32_t>(std::llround((clamped - lo) * (4294967295.0 / span)));
+            return pack_be<uint32_t>(raw);
+        },
+        [=](const std::vector<uint8_t>& bytes) {
+            uint32_t raw{};
+            if (!unpack_be<uint32_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double span = hi - lo;
+            return lo + (static_cast<double>(raw) * (span / 4294967295.0));
+        }
     };
+}
 
-    reg.register_ul(OFFSET_CORNER_LAT_PT1, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LON_PT1, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LAT_PT2, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LON_PT2, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LAT_PT3, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LON_PT3, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LAT_PT4, {encode_offset, decode_offset});
-    reg.register_ul(OFFSET_CORNER_LON_PT4, {encode_offset, decode_offset});
+inline Codec codec_s16_symmetric(double A) {
+    return Codec{
+        [=](double v) {
+            if (std::isnan(v)) return pack_be<int16_t>(static_cast<int16_t>(0x8000));
+            const double clamped = clamp(v, -A, +A);
+            const double scale = 32767.0 / A;
+            int16_t raw = static_cast<int16_t>(std::lround(clamped * scale));
+            if (raw == std::numeric_limits<int16_t>::min()) raw = -32767;
+            return pack_be<int16_t>(raw);
+        },
+        [=](const std::vector<uint8_t>& bytes) {
+            int16_t raw{};
+            if (!unpack_be<int16_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            if (raw == std::numeric_limits<int16_t>::min()) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(raw) * (A / 32767.0);
+        }
+    };
+}
 
-    // Simple coded values
-    reg.register_ul(ICING_DETECTED, {
-        [](double code) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(code)};
+inline Codec codec_s32_symmetric(double A) {
+    return Codec{
+        [=](double v) {
+            if (std::isnan(v)) return pack_be<int32_t>(static_cast<int32_t>(0x80000000));
+            const double clamped = clamp(v, -A, +A);
+            const double scale = 2147483647.0 / A;
+            int32_t raw = static_cast<int32_t>(std::llround(clamped * scale));
+            if (raw == std::numeric_limits<int32_t>::min()) raw = -2147483647;
+            return pack_be<int32_t>(raw);
+        },
+        [=](const std::vector<uint8_t>& bytes) {
+            int32_t raw{};
+            if (!unpack_be<int32_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            if (raw == std::numeric_limits<int32_t>::min()) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(raw) * (A / 2147483647.0);
+        }
+    };
+}
+
+inline Codec codec_u8_direct() {
+    return Codec{
+        [](double v) {
+            const uint8_t raw = static_cast<uint8_t>(clamp(v, 0.0, 255.0));
+            return std::vector<uint8_t>{ raw };
         },
         [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
+            if (bytes.size() != 1) return std::numeric_limits<double>::quiet_NaN();
             return static_cast<double>(bytes[0]);
         }
-    });
+    };
+}
 
-    // Wind direction: degrees [0,360]
-    reg.register_ul(WIND_DIRECTION, {
-        [](double deg) {
-            uint16_t raw = static_cast<uint16_t>((deg / 360.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
+inline Codec codec_u8_linear(double min, double max) {
+    return Codec{
+        [=](double v) {
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double clamped = clamp(v, lo, hi);
+            const double span = hi - lo;
+            const uint8_t raw = static_cast<uint8_t>(std::lround((clamped - lo) * (255.0 / span)));
+            return std::vector<uint8_t>{ raw };
         },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 360.0;
+        [=](const std::vector<uint8_t>& bytes) {
+            if (bytes.size() != 1) return std::numeric_limits<double>::quiet_NaN();
+            const double lo = std::min(min, max);
+            const double hi = std::max(min, max);
+            const double span = hi - lo;
+            return lo + (static_cast<double>(bytes[0]) * (span / 255.0));
         }
-    });
+    };
+}
 
-    // Wind speed: m/s [0,100]
-    reg.register_ul(WIND_SPEED, {
-        [](double speed) {
-            uint8_t raw = static_cast<uint8_t>((speed / 100.0) * 255.0);
-            return std::vector<uint8_t>{raw};
+inline Codec codec_u16_direct() {
+    return Codec{
+        [](double v) {
+            const uint16_t raw = static_cast<uint16_t>(clamp(v, 0.0, 65535.0));
+            return pack_be<uint16_t>(raw);
         },
         [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return (bytes[0] / 255.0) * 100.0;
+            uint16_t raw{};
+            if (!unpack_be<uint16_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(raw);
         }
-    });
+    };
+}
 
-    // Static pressure: millibar [0,5000]
-    reg.register_ul(STATIC_PRESSURE, {
-        [](double mb) {
-            uint16_t raw = static_cast<uint16_t>((mb / 5000.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
+inline Codec codec_u32_direct() {
+    return Codec{
+        [](double v) {
+            const uint32_t raw = static_cast<uint32_t>(
+                std::llround(clamp(v, 0.0, static_cast<double>(std::numeric_limits<uint32_t>::max()))));
+            return pack_be<uint32_t>(raw);
         },
         [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 5000.0;
+            uint32_t raw{};
+            if (!unpack_be<uint32_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(raw);
         }
-    });
+    };
+}
 
-    // Density altitude: meters [-900,19000]
-    reg.register_ul(DENSITY_ALTITUDE, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
+inline Codec codec_px_step2_u8() {
+    return Codec{
+        [](double px) {
+            const double v = clamp(px, 0.0, 510.0);
+            const uint8_t raw = static_cast<uint8_t>(std::lround(v / 2.0));
+            return std::vector<uint8_t>{ raw };
         },
         [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
+            if (bytes.size() != 1) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(bytes[0]) * 2.0;
         }
-    });
+    };
+}
 
-    // Outside air temperature: int8 direct
-    reg.register_ul(OUTSIDE_AIR_TEMPERATURE, {
-        [](double c) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(static_cast<int8_t>(c))};
+inline Codec codec_time_u64() {
+    return Codec{
+        [](double usec) {
+            const uint64_t raw = static_cast<uint64_t>(usec < 0.0 ? 0.0 : usec);
+            return pack_be<uint64_t>(raw);
         },
         [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
+            uint64_t raw{};
+            if (!unpack_be<uint64_t>(bytes, raw)) return std::numeric_limits<double>::quiet_NaN();
+            return static_cast<double>(raw);
+        }
+    };
+}
+
+inline Codec codec_angle_0_360_u16() { return codec_u16_linear(0.0, 360.0); }
+inline Codec codec_angle_0_360_u32() { return codec_u32_linear(0.0, 360.0); }
+inline Codec codec_angle_0_180_u16() { return codec_u16_linear(0.0, 180.0); }
+inline Codec codec_lat_s32() { return codec_s32_symmetric(90.0); }
+inline Codec codec_lon_s32() { return codec_s32_symmetric(180.0); }
+
+} // namespace detail
+
+#define REG(TAG_DEC, CODEC_EXPR) \
+    reg.register_ul(detail::make_ul(static_cast<uint8_t>(TAG_DEC)), { (CODEC_EXPR).enc, (CODEC_EXPR).dec })
+
+void register_st0601(KLVRegistry& reg) {
+    using namespace detail;
+
+    REG(2,  codec_time_u64());
+
+    REG(5,  codec_angle_0_360_u16());
+    REG(6,  codec_s16_symmetric(20.0));
+    REG(7,  codec_s16_symmetric(50.0));
+    REG(8,  codec_u8_direct());
+    REG(9,  codec_u8_direct());
+    REG(64, codec_angle_0_360_u16());
+    REG(112, codec_angle_0_360_u16());
+    REG(50, codec_s16_symmetric(20.0));
+    REG(51, codec_s16_symmetric(180.0));
+    REG(52, codec_s16_symmetric(20.0));
+
+    REG(13, codec_lat_s32());
+    REG(14, codec_lon_s32());
+    REG(15, codec_u16_linear(-900.0, 19000.0));
+    REG(16, codec_angle_0_180_u16());
+    REG(17, codec_angle_0_180_u16());
+    REG(18, codec_angle_0_360_u32());
+    REG(19, codec_lon_s32());
+    REG(20, codec_angle_0_360_u32());
+    REG(75, codec_u16_linear(-900.0, 19000.0));
+    REG(79, codec_s16_symmetric(327.0));
+    REG(80, codec_s16_symmetric(327.0));
+
+    REG(21, codec_u32_linear(0.0, 5000000.0));
+    REG(22, codec_u16_linear(0.0, 10000.0));
+    REG(40, codec_lat_s32());
+    REG(41, codec_lon_s32());
+    REG(42, codec_u16_linear(-900.0, 19000.0));
+    REG(43, codec_px_step2_u8());
+    REG(44, codec_px_step2_u8());
+    REG(45, codec_u16_linear(0.0, 4095.0));
+    REG(46, codec_u16_linear(0.0, 4095.0));
+
+    REG(23, codec_lat_s32());
+    REG(24, codec_lon_s32());
+    REG(25, codec_u16_linear(-900.0, 19000.0));
+    auto s16_offset = codec_s16_symmetric(0.15);
+    REG(26, s16_offset); REG(27, s16_offset);
+    REG(28, s16_offset); REG(29, s16_offset);
+    REG(30, s16_offset); REG(31, s16_offset);
+    REG(32, s16_offset); REG(33, s16_offset);
+    REG(82, codec_lat_s32()); REG(83, codec_lon_s32());
+    REG(84, codec_lat_s32()); REG(85, codec_lon_s32());
+    REG(86, codec_lat_s32()); REG(87, codec_lon_s32());
+    REG(88, codec_lat_s32()); REG(89, codec_lon_s32());
+
+    REG(34, codec_u8_direct());
+    REG(35, codec_angle_0_360_u16());
+    REG(36, codec_u8_linear(0.0, 100.0));
+    REG(37, codec_u16_linear(0.0, 5000.0));
+    REG(38, codec_u16_linear(-900.0, 19000.0));
+    reg.register_ul(make_ul(39), {
+        [](double c) { return std::vector<uint8_t>{ static_cast<uint8_t>(static_cast<int8_t>(clamp(c, -128.0, 127.0))) }; },
+        [](const std::vector<uint8_t>& bytes) -> double {
+            if (bytes.size() != 1) return std::numeric_limits<double>::quiet_NaN();
             return static_cast<double>(static_cast<int8_t>(bytes[0]));
         }
     });
+    REG(47, codec_u16_direct());
+    REG(49, codec_u16_linear(0.0, 5000.0));
+    REG(53, codec_u16_linear(0.0, 5000.0));
+    REG(54, codec_u16_linear(-900.0, 19000.0));
+    REG(55, codec_u8_linear(0.0, 100.0));
 
-    // Target latitude/longitude: same scale as sensor
-    reg.register_ul(TARGET_LATITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
+    REG(56, codec_u8_direct());
+    REG(57, codec_u32_linear(0.0, 5000000.0));
+    REG(58, codec_u16_linear(0.0, 10000.0));
+    REG(60, codec_u16_direct());
+    REG(61, codec_u8_direct());
+    REG(62, codec_u16_direct());
+    REG(63, codec_u8_direct());
+    REG(65, codec_u8_direct());
+    REG(67, codec_lat_s32());
+    REG(68, codec_lon_s32());
+    REG(69, codec_u16_linear(-900.0, 19000.0));
+    REG(71, codec_angle_0_360_u16());
+    REG(72, codec_time_u64());
+    REG(76, codec_u16_linear(-900.0, 19000.0));
+    REG(78, codec_u16_linear(-900.0, 19000.0));
 
-    reg.register_ul(TARGET_LONGITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
+    REG(90, codec_s32_symmetric(90.0));
+    REG(91, codec_s32_symmetric(90.0));
+    REG(92, codec_s32_symmetric(90.0));
+    REG(93, codec_s32_symmetric(90.0));
 
-    // Target error metrics: meters [0,4095]
-    reg.register_ul(TARGET_ERROR_CE90, {
-        [](double m) {
-            uint16_t raw = static_cast<uint16_t>((m / 4095.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 4095.0;
-        }
-    });
+    REG(94, codec_u16_direct());
+    REG(95, codec_u16_direct());
+    REG(96, codec_u16_direct());
+    REG(97, codec_u16_direct());
+    REG(98, codec_u16_direct());
+    REG(99, codec_u16_direct());
+    REG(100, codec_u16_direct());
+    REG(101, codec_u16_direct());
+    REG(102, codec_u16_direct());
+    REG(103, codec_u16_direct());
+    REG(104, codec_u16_direct());
+    REG(105, codec_u16_direct());
+    REG(107, codec_u16_direct());
+    REG(108, codec_u16_direct());
+    REG(109, codec_u16_direct());
+    REG(110, codec_u16_direct());
+    REG(111, codec_u16_direct());
+    REG(113, codec_u16_direct());
+    REG(114, codec_u16_direct());
+    REG(115, codec_u16_direct());
+    REG(116, codec_u16_direct());
+    REG(117, codec_u16_direct());
+    REG(118, codec_u16_direct());
+    REG(119, codec_u16_direct());
+    REG(120, codec_u16_direct());
+    REG(121, codec_u16_direct());
+    REG(122, codec_u16_direct());
+    REG(123, codec_u16_direct());
+    REG(124, codec_u16_direct());
+    REG(125, codec_u16_direct());
+    REG(126, codec_u16_direct());
+    REG(127, codec_u16_direct());
+    REG(128, codec_u16_direct());
+    REG(129, codec_u16_direct());
+    REG(130, codec_u16_direct());
+    REG(131, codec_u16_direct());
+    REG(132, codec_u16_direct());
+    REG(133, codec_u16_direct());
+    REG(134, codec_u16_direct());
+    REG(135, codec_u16_direct());
+    REG(136, codec_u16_direct());
+    REG(137, codec_u16_direct());
+    REG(138, codec_u16_direct());
+    REG(139, codec_u16_direct());
+    REG(140, codec_u16_direct());
+    REG(141, codec_u16_direct());
+    REG(142, codec_u16_direct());
 
-    reg.register_ul(TARGET_ERROR_LE90, {
-        [](double m) {
-            uint16_t raw = static_cast<uint16_t>((m / 4095.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 4095.0;
-        }
-    });
-
-    // Generic flag data
-    reg.register_ul(GENERIC_FLAG_DATA01, {
-        [](double val) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(val)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Differential pressure: millibar [0,5000]
-    reg.register_ul(DIFFERENTIAL_PRESSURE, {
-        [](double mb) {
-            uint16_t raw = static_cast<uint16_t>((mb / 5000.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 5000.0;
-        }
-    });
-
-    // Platform angle of attack: degrees [-20,+20]
-    auto encode_small_angle = [](double deg) {
-        int16_t raw = static_cast<int16_t>((deg / 40.0) * 65534.0);
-        return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-    };
-    auto decode_small_angle = [](const std::vector<uint8_t>& bytes) {
-        if (bytes.size() != 2) return 0.0;
-        int16_t raw = static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
-        return (raw / 65534.0) * 40.0;
-    };
-    reg.register_ul(PLATFORM_ANGLE_OF_ATTACK, {encode_small_angle, decode_small_angle});
-    reg.register_ul(PLATFORM_SIDESLIP_ANGLE, {encode_small_angle, decode_small_angle});
-
-    // Platform vertical speed: m/s [-180,+180]
-    reg.register_ul(PLATFORM_VERTICAL_SPEED, {
-        [](double ms) {
-            int16_t raw = static_cast<int16_t>((ms / 360.0) * 65534.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            int16_t raw = static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65534.0) * 360.0;
-        }
-    });
-
-    // Airfield barometric pressure: millibar [0,5000]
-    reg.register_ul(AIRFIELD_BAROMETRIC_PRESSURE, {
-        [](double mb) {
-            uint16_t raw = static_cast<uint16_t>((mb / 5000.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 5000.0;
-        }
-    });
-
-    // Airfield elevation: meters [-900,19000]
-    reg.register_ul(AIRFIELD_ELEVATION, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    // Relative humidity: percent [0,100]
-    reg.register_ul(RELATIVE_HUMIDITY, {
-        [](double pct) {
-            uint8_t raw = static_cast<uint8_t>((pct / 100.0) * 255.0);
-            return std::vector<uint8_t>{raw};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return (bytes[0] / 255.0) * 100.0;
-        }
-    });
-
-    // Platform ground speed: m/s [0,255]
-    reg.register_ul(PLATFORM_GROUND_SPEED, {
-        [](double speed) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(speed)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Ground range: meters [0,5e6]
-    reg.register_ul(GROUND_RANGE, {
-        [](double meters) {
-            uint32_t raw = static_cast<uint32_t>((meters / 5000000.0) * 4294967295.0);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            uint32_t raw = (static_cast<uint32_t>(bytes[0]) << 24) |
-                           (static_cast<uint32_t>(bytes[1]) << 16) |
-                           (static_cast<uint32_t>(bytes[2]) << 8) |
-                           static_cast<uint32_t>(bytes[3]);
-            return (raw / 4294967295.0) * 5000000.0;
-        }
-    });
-
-    // Platform fuel remaining: kg [0,10000]
-    reg.register_ul(PLATFORM_FUEL_REMAINING, {
-        [](double kg) {
-            uint16_t raw = static_cast<uint16_t>((kg / 10000.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 10000.0;
-        }
-    });
-
-    // Weapon load: raw nibbles packed into uint16
-    reg.register_ul(WEAPON_LOAD, {
-        [](double val) {
-            uint16_t raw = static_cast<uint16_t>(val);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return static_cast<double>(raw);
-        }
-    });
-
-    // Weapon fired: station/substation nibbles
-    reg.register_ul(WEAPON_FIRED, {
-        [](double val) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(val)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Laser PRF code: decimal in uint16
-    reg.register_ul(LASER_PRF_CODE, {
-        [](double val) {
-            uint16_t raw = static_cast<uint16_t>(val);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return static_cast<double>(raw);
-        }
-    });
-
-    // Sensor field of view name: enum
-    reg.register_ul(SENSOR_FOV_NAME, {
-        [](double val) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(val)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Platform magnetic heading: degrees [0,360] -> uint16
-    reg.register_ul(PLATFORM_MAGNETIC_HEADING, {
-        [](double degrees) {
-            uint16_t raw = static_cast<uint16_t>((degrees / 360.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 360.0;
-        }
-    });
-
-    // UAS LS version number: uint8
-    reg.register_ul(UAS_LS_VERSION_NUMBER, {
-        [](double val) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(val)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Alternate platform latitude: degrees [-90,+90] -> int32
-    reg.register_ul(ALTERNATE_PLATFORM_LATITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Alternate platform longitude: degrees [-180,+180] -> int32
-    reg.register_ul(ALTERNATE_PLATFORM_LONGITUDE, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Alternate platform altitude: meters [-900,19000] -> uint16
-    reg.register_ul(ALTERNATE_PLATFORM_ALTITUDE, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    // Alternate platform heading: degrees [0,360] -> uint16
-    reg.register_ul(ALTERNATE_PLATFORM_HEADING, {
-        [](double degrees) {
-            uint16_t raw = static_cast<uint16_t>((degrees / 360.0) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            return (raw / 65535.0) * 360.0;
-        }
-    });
-
-    // Event start time UTC: microseconds since epoch -> uint64
-    reg.register_ul(EVENT_START_TIME_UTC, {
-        [](double usec) {
-            uint64_t raw = static_cast<uint64_t>(usec);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 56),
-                static_cast<uint8_t>(raw >> 48),
-                static_cast<uint8_t>(raw >> 40),
-                static_cast<uint8_t>(raw >> 32),
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 8) return 0.0;
-            uint64_t raw =
-                (static_cast<uint64_t>(bytes[0]) << 56) |
-                (static_cast<uint64_t>(bytes[1]) << 48) |
-                (static_cast<uint64_t>(bytes[2]) << 40) |
-                (static_cast<uint64_t>(bytes[3]) << 32) |
-                (static_cast<uint64_t>(bytes[4]) << 24) |
-                (static_cast<uint64_t>(bytes[5]) << 16) |
-                (static_cast<uint64_t>(bytes[6]) << 8)  |
-                static_cast<uint64_t>(bytes[7]);
-            return static_cast<double>(raw);
-        }
-    });
-
-    // Sensor ellipsoid height: meters [-900,19000] -> uint16
-    reg.register_ul(SENSOR_ELLIPSOID_HEIGHT, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    // Alternate platform ellipsoid height: meters [-900,19000] -> uint16
-    reg.register_ul(ALTERNATE_PLATFORM_ELLIPSOID_HEIGHT, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    // Operational mode: enum
-    reg.register_ul(OPERATIONAL_MODE, {
-        [](double val) {
-            return std::vector<uint8_t>{static_cast<uint8_t>(val)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 1) return 0.0;
-            return static_cast<double>(bytes[0]);
-        }
-    });
-
-    // Frame center height above ellipsoid: meters [-900,19000]
-    reg.register_ul(FRAME_CENTER_HAE, {
-        [](double meters) {
-            double min = -900.0, max = 19000.0;
-            uint16_t raw = static_cast<uint16_t>(((meters - min) / (max - min)) * 65535.0);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -900.0, max = 19000.0;
-            return min + (raw / 65535.0) * (max - min);
-        }
-    });
-
-    // Sensor north velocity: m/s [-327,+327] -> int16
-    reg.register_ul(SENSOR_NORTH_VELOCITY, {
-        [](double ms) {
-            double min = -327.0, max = 327.0;
-            int16_t raw = static_cast<int16_t>(((ms - min) / (max - min)) * 65534.0 - 32767);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            int16_t raw = static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -327.0, max = 327.0;
-            return min + ((raw + 32767.0) / 65534.0) * (max - min);
-        }
-    });
-
-    // Sensor east velocity: m/s [-327,+327] -> int16
-    reg.register_ul(SENSOR_EAST_VELOCITY, {
-        [](double ms) {
-            double min = -327.0, max = 327.0;
-            int16_t raw = static_cast<int16_t>(((ms - min) / (max - min)) * 65534.0 - 32767);
-            return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 2) return 0.0;
-            int16_t raw = static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
-            double min = -327.0, max = 327.0;
-            return min + ((raw + 32767.0) / 65534.0) * (max - min);
-        }
-    });
-
-    // Corner latitude point1 full: degrees [-90,+90] -> int32
-    reg.register_ul(CORNER_LAT_PT1_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner longitude point1 full: degrees [-180,+180] -> int32
-    reg.register_ul(CORNER_LON_PT1_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner latitude point2 full
-    reg.register_ul(CORNER_LAT_PT2_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner longitude point2 full
-    reg.register_ul(CORNER_LON_PT2_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner latitude point3 full
-    reg.register_ul(CORNER_LAT_PT3_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner longitude point3 full
-    reg.register_ul(CORNER_LON_PT3_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner latitude point4 full
-    reg.register_ul(CORNER_LAT_PT4_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Corner longitude point4 full
-    reg.register_ul(CORNER_LON_PT4_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 180.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 180.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Platform pitch angle full
-    reg.register_ul(PLATFORM_PITCH_ANGLE_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Platform roll angle full
-    reg.register_ul(PLATFORM_ROLL_ANGLE_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Platform angle of attack full
-    reg.register_ul(PLATFORM_AOA_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    // Platform sideslip angle full
-    reg.register_ul(PLATFORM_SIDESLIP_ANGLE_FULL, {
-        [](double degrees) {
-            double scale = 2147483647.0 / 90.0;
-            int32_t raw = static_cast<int32_t>(degrees * scale);
-            return std::vector<uint8_t>{
-                static_cast<uint8_t>(raw >> 24),
-                static_cast<uint8_t>(raw >> 16),
-                static_cast<uint8_t>(raw >> 8),
-                static_cast<uint8_t>(raw)
-            };
-        },
-        [](const std::vector<uint8_t>& bytes) {
-            if (bytes.size() != 4) return 0.0;
-            int32_t raw = static_cast<int32_t>(
-                (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-            double scale = 90.0 / 2147483647.0;
-            return raw * scale;
-        }
-    });
-
-    auto encode_uint16 = [](double value) {
-        uint16_t raw = static_cast<uint16_t>(value);
-        return std::vector<uint8_t>{static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)};
-    };
-    auto decode_uint16 = [](const std::vector<uint8_t>& bytes) {
-        if (bytes.size() != 2) return 0.0;
-        uint16_t raw = static_cast<uint16_t>(bytes[0] << 8 | bytes[1]);
-        return static_cast<double>(raw);
-    };
-
-    reg.register_ul(MIIS_CORE_IDENTIFIER, {encode_uint16, decode_uint16});
-    reg.register_ul(SAR_MOTION_IMAGERY_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(TARGET_WIDTH_EXTENDED, {encode_uint16, decode_uint16});
-    reg.register_ul(RANGE_IMAGE_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(GEO_REGISTRATION_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(COMPOSITE_IMAGING_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(SEGMENT_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(AMEND_LOCAL_SET, {encode_uint16, decode_uint16});
-    reg.register_ul(SDCC_FLP, {encode_uint16, decode_uint16});
-    reg.register_ul(DENSITY_ALTITUDE_EXTENDED, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_ELLIPSOID_HEIGHT_EXTENDED, {encode_uint16, decode_uint16});
-    reg.register_ul(ALTERNATE_PLATFORM_ELLIPSOID_HEIGHT_EXTENDED, {encode_uint16, decode_uint16});
-    reg.register_ul(STREAM_DESIGNATOR, {encode_uint16, decode_uint16});
-    reg.register_ul(OPERATIONAL_BASE, {encode_uint16, decode_uint16});
-    reg.register_ul(BROADCAST_SOURCE, {encode_uint16, decode_uint16});
-    reg.register_ul(RANGE_TO_RECOVERY_LOCATION, {encode_uint16, decode_uint16});
-    reg.register_ul(TIME_AIRBORNE, {encode_uint16, decode_uint16});
-    reg.register_ul(PROPULSION_UNIT_SPEED, {encode_uint16, decode_uint16});
-    reg.register_ul(PLATFORM_COURSE_ANGLE, {encode_uint16, decode_uint16});
-    reg.register_ul(ALTITUDE_AGL, {encode_uint16, decode_uint16});
-    reg.register_ul(RADAR_ALTIMETER, {encode_uint16, decode_uint16});
-    reg.register_ul(CONTROL_COMMAND, {encode_uint16, decode_uint16});
-    reg.register_ul(CONTROL_COMMAND_VERIFICATION_LIST, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_AZIMUTH_RATE, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_ELEVATION_RATE, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_ROLL_RATE, {encode_uint16, decode_uint16});
-    reg.register_ul(ON_BOARD_MI_STORAGE_PERCENT_FULL, {encode_uint16, decode_uint16});
-    reg.register_ul(ACTIVE_WAVELENGTH_LIST, {encode_uint16, decode_uint16});
-    reg.register_ul(COUNTRY_CODES, {encode_uint16, decode_uint16});
-    reg.register_ul(NUMBER_OF_NAVSATS_IN_VIEW, {encode_uint16, decode_uint16});
-    reg.register_ul(POSITIONING_METHOD_SOURCE, {encode_uint16, decode_uint16});
-    reg.register_ul(PLATFORM_STATUS, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_CONTROL_MODE, {encode_uint16, decode_uint16});
-    reg.register_ul(SENSOR_FRAME_RATE_PACK, {encode_uint16, decode_uint16});
-    reg.register_ul(WAVELENGTHS_LIST, {encode_uint16, decode_uint16});
-    reg.register_ul(TARGET_ID, {encode_uint16, decode_uint16});
-    reg.register_ul(AIRBASE_LOCATIONS, {encode_uint16, decode_uint16});
-    reg.register_ul(TAKE_OFF_TIME, {encode_uint16, decode_uint16});
-    reg.register_ul(TRANSMISSION_FREQUENCY, {encode_uint16, decode_uint16});
-    reg.register_ul(ON_BOARD_MI_STORAGE_CAPACITY, {encode_uint16, decode_uint16});
-    reg.register_ul(ZOOM_PERCENTAGE, {encode_uint16, decode_uint16});
-    reg.register_ul(COMMUNICATIONS_METHOD, {encode_uint16, decode_uint16});
-    reg.register_ul(LEAP_SECONDS, {encode_uint16, decode_uint16});
-    reg.register_ul(CORRECTION_OFFSET, {encode_uint16, decode_uint16});
-    reg.register_ul(PAYLOAD_LIST, {encode_uint16, decode_uint16});
-    reg.register_ul(ACTIVE_PAYLOADS, {encode_uint16, decode_uint16});
-    reg.register_ul(WEAPONS_STORES, {encode_uint16, decode_uint16});
-    reg.register_ul(WAYPOINT_LIST, {encode_uint16, decode_uint16});
+    REG(81, codec_u16_direct());
+    REG(77, codec_u8_direct());
 }
+
+#undef REG
 
 } // namespace st0601
 } // namespace misb
+
