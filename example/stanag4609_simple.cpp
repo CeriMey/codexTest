@@ -10,21 +10,22 @@ int main() {
     misb::st0601::register_st0601(reg);
     misb::st0903::register_st0903(reg);
 
-    // Build a STANAG 4609 packet mixing UAV telemetry and VMTI detections
+    // Build a STANAG 4609 packet mixing UAV telemetry and 20 VMTI detections
     KLVSet packet = STANAG4609_PACKET(
         KLV_ST_ITEM(0601, UNIX_TIMESTAMP, 1700000000.0),
         KLV_ST_ITEM(0601, SENSOR_LATITUDE, 48.8566),
         KLV_ST_ITEM(0601, SENSOR_LONGITUDE, 2.3522),
-        KLV_ST_ITEM(0601, PLATFORM_HEADING_ANGLE, 90.0),
-        KLV_ST_DATASET(0601, VMTI_LOCAL_SET,
-            KLV_ST_ITEM(0903, VMTI_TARGET_ID, 1.0),
-            KLV_ST_ITEM(0903, VMTI_DETECTION_STATUS, 1.0),
-            KLV_ST_ITEM(0903, VMTI_DETECTION_PROBABILITY, 0.95),
-            KLV_ST_ITEM(0903, VMTI_TARGET_ID, 2.0),
-            KLV_ST_ITEM(0903, VMTI_DETECTION_STATUS, 1.0),
-            KLV_ST_ITEM(0903, VMTI_DETECTION_PROBABILITY, 0.60)
-        )
+        KLV_ST_ITEM(0601, PLATFORM_HEADING_ANGLE, 90.0)
     );
+
+    // Add at least 60 values: 20 detections (ID, status, probability)
+    KLVSet vmti;
+    for (int i = 1; i <= 20; ++i) {
+        KLV_ADD_LEAF(vmti, misb::st0903::VMTI_TARGET_ID, static_cast<double>(i));
+        KLV_ADD_LEAF(vmti, misb::st0903::VMTI_DETECTION_STATUS, static_cast<double>(i % 2));
+        KLV_ADD_LEAF(vmti, misb::st0903::VMTI_DETECTION_PROBABILITY, 0.5 + 0.01 * i);
+    }
+    KLV_ADD_BYTES(packet, misb::st0601::VMTI_LOCAL_SET, vmti.encode());
     auto bytes = packet.encode();
 
     std::cout << "Encoded packet:";
@@ -50,20 +51,25 @@ int main() {
     std::cout << "  Longitude: " << lon << '\n';
     std::cout << "  Heading  : " << heading << '\n';
 
-    KLVSet vmti_decoded;
-    ST_GET_SET(decoded, 0601, VMTI_LOCAL_SET, vmti_decoded);
+    KLV_GET_SET_UL(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
 
-    const auto& nodes = vmti_decoded.children();
     std::cout << "Decoded detections:\n";
-    for (size_t i = 0; i + 2 < nodes.size(); i += 3) {
-        auto id_leaf = std::dynamic_pointer_cast<KLVLeaf>(nodes[i]);
-        auto status_leaf = std::dynamic_pointer_cast<KLVLeaf>(nodes[i + 1]);
-        auto prob_leaf = std::dynamic_pointer_cast<KLVLeaf>(nodes[i + 2]);
-        if (id_leaf && status_leaf && prob_leaf) {
-            std::cout << "  ID " << id_leaf->value()
-                      << " status " << status_leaf->value()
-                      << " prob " << prob_leaf->value() << '\n';
+    size_t idx = 0;
+    double id = 0.0, status = 0.0, prob = 0.0;
+    KLV_FOR_EACH_CHILD(vmti_decoded, node) {
+        auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node);
+        if (!leaf) continue;
+        if (idx % 3 == 0) {
+            id = leaf->value();
+        } else if (idx % 3 == 1) {
+            status = leaf->value();
+        } else {
+            prob = leaf->value();
+            std::cout << "  ID " << id
+                      << " status " << status
+                      << " prob " << prob << '\n';
         }
+        ++idx;
     }
 
     return 0;

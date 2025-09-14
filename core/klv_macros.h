@@ -53,3 +53,16 @@
 #define ST_GET_SET(dataset, ST, TAG, out) \
     KLV_GET_SET(dataset, KLV_ST_TAG(ST, TAG), out)
 
+// Convenience macro to decode a nested KLV set given a UL and create a variable
+#define KLV_GET_SET_UL(dataset, ul, name) \
+    KLVSet name; \
+    KLV_GET_SET(dataset, ul, name)
+
+// Convenience macro to decode a nested KLV set given ST and TAG identifiers
+#define ST_GET_SET_UL(dataset, ST, TAG, name) \
+    KLV_GET_SET_UL(dataset, KLV_ST_TAG(ST, TAG), name)
+
+// Iterate over all children of a dataset
+#define KLV_FOR_EACH_CHILD(dataset, child) \
+    for (const auto& child : dataset.children())
+
