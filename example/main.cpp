@@ -94,23 +94,41 @@ int main() {
                   << ", el: " << gimbalElRate
                   << ") Detection prob: " << detectionProb << '\n';
         print(dataSetBytes);
+        KLVSet decodedSet;
+        decodedSet.decode(dataSetBytes);
 
-        std::cout << "  ST0601 decoded values:\n";
-        for (const auto& t : st0601Tags) {
-            KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
-            auto bytes = leaf.encode();
-            KLVLeaf decoded(std::get<1>(t));
-            decoded.decode(bytes);
-            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        std::cout << "  Decoded ST0601/ST0102 values:\n";
+        KLVSet vmtiDecoded;
+        auto findName = [&](const UL& ul) {
+            for (const auto& t : st0601Tags) if (std::get<1>(t) == ul) return std::get<0>(t);
+            for (const auto& t : st0102Tags) if (std::get<1>(t) == ul) return std::get<0>(t);
+            return std::string{};
+        };
+        for (const auto& node : decodedSet.children()) {
+            if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
+                std::string name = findName(leaf->ul());
+                if (!name.empty()) {
+                    std::cout << "    " << name << ": " << leaf->value() << '\n';
+                }
+            } else if (auto bytesNode = std::dynamic_pointer_cast<KLVBytes>(node)) {
+                if (bytesNode->ul() == misb::st0601::VMTI_LOCAL_SET) {
+                    vmtiDecoded.decode(bytesNode->value());
+                }
+            }
         }
 
-        std::cout << "  ST0903 decoded values:\n";
-        for (const auto& t : st0903Tags) {
-            KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
-            auto bytes = leaf.encode();
-            KLVLeaf decoded(std::get<1>(t));
-            decoded.decode(bytes);
-            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        std::cout << "  Decoded ST0903 values:\n";
+        auto findVmtiName = [&](const UL& ul) {
+            for (const auto& t : st0903Tags) if (std::get<1>(t) == ul) return std::get<0>(t);
+            return std::string{};
+        };
+        for (const auto& node : vmtiDecoded.children()) {
+            if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
+                std::string name = findVmtiName(leaf->ul());
+                if (!name.empty()) {
+                    std::cout << "    " << name << ": " << leaf->value() << '\n';
+                }
+            }
         }
     }
 
