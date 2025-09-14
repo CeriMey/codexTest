@@ -58,11 +58,13 @@ Pour la liste complète des balises et leurs définitions, se reporter à la
 ## Compilation
 
 ```
-make
+cmake -S . -B build
+cmake --build build
 ```
 
 ## Exécution
 
 ```
-./main
+./build/main
 ```
+
