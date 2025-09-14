@@ -5,12 +5,21 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(klv STATIC
-    core/klv.cpp
+    core/klv_leaf.cpp
+    core/klv_bytes.cpp
+    core/klv_set.cpp
+    core/klv_registry.cpp
     core/stanag.cpp
     st0102/st0102.cpp
     st0601/st0601.cpp
     st0903/st0903.cpp
     core/klv.h
+    core/klv_types.h
+    core/klv_node.h
+    core/klv_leaf.h
+    core/klv_bytes.h
+    core/klv_set.h
+    core/klv_registry.h
     core/stanag.h
     st0102/st0102.h
     st0601/st0601.h
@@ -36,3 +45,9 @@ add_executable(macro_example
 )
 
 target_link_libraries(macro_example PRIVATE klv)
+
+add_executable(stanag4609_simple
+    example/stanag4609_simple.cpp
+)
+
+target_link_libraries(stanag4609_simple PRIVATE klv)
