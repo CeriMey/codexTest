@@ -9,6 +9,8 @@ namespace st0903 {
 extern const UL VMTI_TARGET_ID;
 extern const UL VMTI_DETECTION_STATUS;
 extern const UL VMTI_DETECTION_PROBABILITY;
+extern const UL VMTI_TRACKER_ID;
+extern const UL VMTI_CLASS_ID;
 
 // Register encode/decode lambdas for the above ULs
 void register_st0903(KLVRegistry& reg);
