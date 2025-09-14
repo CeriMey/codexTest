@@ -5,9 +5,14 @@
 #include <memory>
 
 // Basic tag and set construction
-#define KLV_TAG(tag, value) stanag::TagValue{tag, value}
+#define KLV_TAG(tag, value) stanag::TagValue(tag, value)
 #define KLV_SET(...) stanag::create_dataset({__VA_ARGS__})
 #define KLV_LOCAL_DATASET(...) KLV_SET(__VA_ARGS__)
+#define KLV_DATASET(tag, ...) KLV_TAG(tag, KLV_SET(__VA_ARGS__))
+
+// ST helper to embed nested datasets
+#define KLV_ST_DATASET(ST, TAG, ...) \
+    KLV_DATASET(KLV_ST_TAG(ST, TAG), __VA_ARGS__)
 
 // Helpers to reference MISB namespaces generically
 #define KLV_ST_TAG(ST, TAG) misb::st##ST::TAG
@@ -36,4 +41,15 @@
 
 #define ST_GET(dataset, ST, TAG, out) \
     KLV_GET(dataset, KLV_ST_TAG(ST, TAG), out)
+
+#define KLV_GET_SET(dataset, tag, out)                                     \
+    for (const auto& node : dataset.children()) {                          \
+        auto bytes = std::dynamic_pointer_cast<KLVBytes>(node);            \
+        if (bytes && bytes->ul() == tag) {                                 \
+            out.decode(bytes->value());                                    \
+        }                                                                  \
+    }
+
+#define ST_GET_SET(dataset, ST, TAG, out) \
+    KLV_GET_SET(dataset, KLV_ST_TAG(ST, TAG), out)
 
