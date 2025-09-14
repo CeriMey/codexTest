@@ -31,24 +31,43 @@ int main() {
     };
 
     for (int frame = 0; frame < 5; ++frame) {
-        double heading = 90.0 + frame * 5.0;
-        double sensorLat = 45.0 + 0.001 * frame;
-        double sensorLon = -75.0 + 0.001 * frame;
+        double heading      = 90.0 + frame * 5.0;
+        double pitch        = std::sin(frame * 0.2) * 2.0;
+        double roll         = std::cos(frame * 0.3) * 1.5;
+        double sensorLat    = 45.0 + 0.001 * frame;
+        double sensorLon    = -75.0 + 0.001 * frame;
+        double altitudeAgl  = 1000.0 + frame * 10.0;
+        double groundSpeed  = 250.0 + frame * 2.0;
         double gimbalAzRate = std::sin(frame * 0.3) * 2.0;
-        double detectionProb = 0.5 + 0.4 * std::sin(frame * 0.5);
+        double gimbalElRate = std::cos(frame * 0.2) * 1.0;
+        double detectionProb   = 0.5 + 0.4 * std::sin(frame * 0.5);
         double detectionStatus = detectionProb > 0.6 ? 1.0 : 0.0;
 
         std::vector<NamedTag> st0601Tags = {
             {"Heading", misb::st0601::PLATFORM_HEADING_ANGLE, heading},
+            {"Pitch", misb::st0601::PLATFORM_PITCH_ANGLE_FULL, pitch},
+            {"Roll", misb::st0601::PLATFORM_ROLL_ANGLE_FULL, roll},
             {"Sensor lat", misb::st0601::SENSOR_LATITUDE, sensorLat},
             {"Sensor lon", misb::st0601::SENSOR_LONGITUDE, sensorLon},
-            {"Gimbal az rate", misb::st0601::SENSOR_AZIMUTH_RATE, gimbalAzRate}
+            {"Altitude AGL", misb::st0601::ALTITUDE_AGL, altitudeAgl},
+            {"Ground speed", misb::st0601::PLATFORM_GROUND_SPEED, groundSpeed},
+            {"Gimbal az rate", misb::st0601::SENSOR_AZIMUTH_RATE, gimbalAzRate},
+            {"Gimbal el rate", misb::st0601::SENSOR_ELEVATION_RATE, gimbalElRate}
         };
 
         std::vector<NamedTag> st0903Tags = {
-            {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0},
+            {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0 + frame},
             {"Detection status", misb::st0903::VMTI_DETECTION_STATUS, detectionStatus},
-            {"Detection probability", misb::st0903::VMTI_DETECTION_PROBABILITY, detectionProb}
+            {"Detection probability", misb::st0903::VMTI_DETECTION_PROBABILITY, detectionProb},
+            {"Tracker ID", misb::st0903::VMTI_TRACKER_ID, 100.0 + frame},
+            {"Class ID", misb::st0903::VMTI_CLASS_ID, static_cast<double>((frame % 3) + 1)},
+            {"Total targets detected", misb::st0903::VMTI_TOTAL_TARGETS_DETECTED, 5.0 + frame},
+            {"Targets reported", misb::st0903::VMTI_NUM_TARGETS_REPORTED, static_cast<double>(1 + frame % 2)},
+            {"Frame width", misb::st0903::VMTI_FRAME_WIDTH, 1920.0},
+            {"Frame height", misb::st0903::VMTI_FRAME_HEIGHT, 1080.0},
+            {"Centroid row", misb::st0903::VMTI_CENTROID_ROW, 200.0 + frame * 10.0},
+            {"Centroid column", misb::st0903::VMTI_CENTROID_COL, 300.0 + frame * 8.0},
+            {"Algorithm ID", misb::st0903::VMTI_ALGORITHM_ID, 2.0}
         };
 
         std::vector<stanag::TagValue> vmtiValues;
@@ -69,17 +88,29 @@ int main() {
         auto dataSetBytes = dataSet.encode();
 
         std::cout << "[Frame " << frame << "] Heading: " << heading
-                  << ", Gimbal az rate: " << gimbalAzRate
-                  << ", Detection prob: " << detectionProb << '\n';
+                  << ", Pitch: " << pitch
+                  << ", Roll: " << roll
+                  << ", Gimbal rates (az: " << gimbalAzRate
+                  << ", el: " << gimbalElRate
+                  << ") Detection prob: " << detectionProb << '\n';
         print(dataSetBytes);
 
+        std::cout << "  ST0601 decoded values:\n";
+        for (const auto& t : st0601Tags) {
+            KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
+            auto bytes = leaf.encode();
+            KLVLeaf decoded(std::get<1>(t));
+            decoded.decode(bytes);
+            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        }
+
+        std::cout << "  ST0903 decoded values:\n";
         for (const auto& t : st0903Tags) {
             KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
             auto bytes = leaf.encode();
             KLVLeaf decoded(std::get<1>(t));
             decoded.decode(bytes);
-            std::cout << "  Decoded " << std::get<0>(t)
-                      << ": " << decoded.value() << '\n';
+            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
         }
     }
 
