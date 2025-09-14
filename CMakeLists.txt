@@ -10,6 +10,12 @@ add_library(klv STATIC
     st0102/st0102.cpp
     st0601/st0601.cpp
     st0903/st0903.cpp
+    core/klv.h
+    core/stanag.h
+    st0102/st0102.h
+    st0601/st0601.h
+    st0903/st0903.h
+    core/klv_macros.h
 )
 
 target_include_directories(klv PUBLIC
@@ -24,3 +30,9 @@ add_executable(example
 )
 
 target_link_libraries(example PRIVATE klv)
+
+add_executable(macro_example
+    example/macro_example.cpp
+)
+
+target_link_libraries(macro_example PRIVATE klv)
