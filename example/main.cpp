@@ -8,6 +8,7 @@
 #include <tuple>
 #include <vector>
 #include <string>
+#include <cmath>
 
 int main() {
     auto& reg = KLVRegistry::instance();
@@ -16,57 +17,10 @@ int main() {
     misb::st0903::register_st0903(reg);
 
     using NamedTag = std::tuple<std::string, UL, double>;
-    std::vector<NamedTag> st0601Tags = {
-        {"Heading", misb::st0601::PLATFORM_HEADING_ANGLE, 90.0},
-        {"Elevation", misb::st0601::TARGET_LOCATION_ELEVATION, 1000.0},
-        {"Gate width", misb::st0601::TARGET_TRACK_GATE_WIDTH, 256.0},
-        {"Gate height", misb::st0601::TARGET_TRACK_GATE_HEIGHT, 128.0},
-        {"Gate X", misb::st0601::TARGET_TRACK_GATE_X, 640.0},
-        {"Gate Y", misb::st0601::TARGET_TRACK_GATE_Y, 480.0},
-        {"Sensor lat", misb::st0601::SENSOR_LATITUDE, 45.0},
-        {"Sensor lon", misb::st0601::SENSOR_LONGITUDE, -75.0},
-        {"Horizontal FOV", misb::st0601::SENSOR_HORIZONTAL_FOV, 20.0},
-        {"Vertical FOV", misb::st0601::SENSOR_VERTICAL_FOV, 15.0},
-        {"Frame center lat", misb::st0601::FRAME_CENTER_LATITUDE, 44.999},
-        {"Frame center lon", misb::st0601::FRAME_CENTER_LONGITUDE, -74.999},
-        {"Frame center elev", misb::st0601::FRAME_CENTER_ELEVATION, 1100.0},
-        {"Offset corner1 lat", misb::st0601::OFFSET_CORNER_LAT_PT1, 0.01},
-        {"Offset corner1 lon", misb::st0601::OFFSET_CORNER_LON_PT1, -0.02},
-        {"Wind direction", misb::st0601::WIND_DIRECTION, 270.0},
-        {"Wind speed", misb::st0601::WIND_SPEED, 10.0},
-        {"Weapon load", misb::st0601::WEAPON_LOAD, 0x1234},
-        {"Magnetic heading", misb::st0601::PLATFORM_MAGNETIC_HEADING, 180.0},
-        {"Sensor north velocity", misb::st0601::SENSOR_NORTH_VELOCITY, 30.0}
-    };
-
     std::vector<NamedTag> st0102Tags = {
         {"Classification", misb::st0102::CLASSIFICATION, 2.0},
         {"Classification system", misb::st0102::CLASSIFICATION_SYSTEM, 1.0}
     };
-
-    std::vector<NamedTag> st0903Tags = {
-        {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0},
-        {"Detection status", misb::st0903::VMTI_DETECTION_STATUS, 1.0},
-        {"Detection probability", misb::st0903::VMTI_DETECTION_PROBABILITY, 0.85}
-    };
-
-    // Build ST0903 local set then embed it using ST0601 tag 74
-    std::vector<stanag::TagValue> vmtiValues;
-    for (const auto& t : st0903Tags) {
-        vmtiValues.push_back({std::get<1>(t), std::get<2>(t)});
-    }
-    KLVSet vmtiSet = stanag::create_dataset(vmtiValues);
-
-    KLVSet dataSet;
-    for (const auto& t : st0601Tags) {
-        dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
-    }
-    for (const auto& t : st0102Tags) {
-        dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
-    }
-    dataSet.add(std::make_shared<KLVBytes>(misb::st0601::VMTI_LOCAL_SET, vmtiSet.encode()));
-
-    auto dataSetBytes = dataSet.encode();
 
     auto print = [](const std::vector<uint8_t>& data) {
         for (auto b : data) {
@@ -76,32 +30,90 @@ int main() {
         std::cout << std::dec << '\n';
     };
 
-    std::cout << "STANAG 4609 dataset bytes: ";
-    print(dataSetBytes);
+    for (int frame = 0; frame < 5; ++frame) {
+        double heading      = 90.0 + frame * 5.0;
+        double pitch        = std::sin(frame * 0.2) * 2.0;
+        double roll         = std::cos(frame * 0.3) * 1.5;
+        double sensorLat    = 45.0 + 0.001 * frame;
+        double sensorLon    = -75.0 + 0.001 * frame;
+        double altitudeAgl  = 1000.0 + frame * 10.0;
+        double groundSpeed  = 250.0 + frame * 2.0;
+        double gimbalAzRate = std::sin(frame * 0.3) * 2.0;
+        double gimbalElRate = std::cos(frame * 0.2) * 1.0;
+        double detectionProb   = 0.5 + 0.4 * std::sin(frame * 0.5);
+        double detectionStatus = detectionProb > 0.6 ? 1.0 : 0.0;
 
-    for (const auto& t : st0601Tags) {
-        KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
-        auto bytes = leaf.encode();
-        KLVLeaf decoded(std::get<1>(t));
-        decoded.decode(bytes);
-        std::cout << "Decoded " << std::get<0>(t) << ": " << decoded.value() << '\n';
-    }
+        std::vector<NamedTag> st0601Tags = {
+            {"Heading", misb::st0601::PLATFORM_HEADING_ANGLE, heading},
+            {"Pitch", misb::st0601::PLATFORM_PITCH_ANGLE_FULL, pitch},
+            {"Roll", misb::st0601::PLATFORM_ROLL_ANGLE_FULL, roll},
+            {"Sensor lat", misb::st0601::SENSOR_LATITUDE, sensorLat},
+            {"Sensor lon", misb::st0601::SENSOR_LONGITUDE, sensorLon},
+            {"Altitude AGL", misb::st0601::ALTITUDE_AGL, altitudeAgl},
+            {"Ground speed", misb::st0601::PLATFORM_GROUND_SPEED, groundSpeed},
+            {"Gimbal az rate", misb::st0601::SENSOR_AZIMUTH_RATE, gimbalAzRate},
+            {"Gimbal el rate", misb::st0601::SENSOR_ELEVATION_RATE, gimbalElRate}
+        };
 
-    for (const auto& t : st0102Tags) {
-        KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
-        auto bytes = leaf.encode();
-        KLVLeaf decoded(std::get<1>(t));
-        decoded.decode(bytes);
-        std::cout << "Decoded " << std::get<0>(t) << ": " << decoded.value() << '\n';
-    }
+        std::vector<NamedTag> st0903Tags = {
+            {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0 + frame},
+            {"Detection status", misb::st0903::VMTI_DETECTION_STATUS, detectionStatus},
+            {"Detection probability", misb::st0903::VMTI_DETECTION_PROBABILITY, detectionProb},
+            {"Tracker ID", misb::st0903::VMTI_TRACKER_ID, 100.0 + frame},
+            {"Class ID", misb::st0903::VMTI_CLASS_ID, static_cast<double>((frame % 3) + 1)},
+            {"Total targets detected", misb::st0903::VMTI_TOTAL_TARGETS_DETECTED, 5.0 + frame},
+            {"Targets reported", misb::st0903::VMTI_NUM_TARGETS_REPORTED, static_cast<double>(1 + frame % 2)},
+            {"Frame width", misb::st0903::VMTI_FRAME_WIDTH, 1920.0},
+            {"Frame height", misb::st0903::VMTI_FRAME_HEIGHT, 1080.0},
+            {"Centroid row", misb::st0903::VMTI_CENTROID_ROW, 200.0 + frame * 10.0},
+            {"Centroid column", misb::st0903::VMTI_CENTROID_COL, 300.0 + frame * 8.0},
+            {"Algorithm ID", misb::st0903::VMTI_ALGORITHM_ID, 2.0}
+        };
 
-    for (const auto& t : st0903Tags) {
-        KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
-        auto bytes = leaf.encode();
-        KLVLeaf decoded(std::get<1>(t));
-        decoded.decode(bytes);
-        std::cout << "Decoded " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        std::vector<stanag::TagValue> vmtiValues;
+        for (const auto& t : st0903Tags) {
+            vmtiValues.push_back({std::get<1>(t), std::get<2>(t)});
+        }
+        KLVSet vmtiSet = stanag::create_dataset(vmtiValues);
+
+        KLVSet dataSet;
+        for (const auto& t : st0601Tags) {
+            dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
+        }
+        for (const auto& t : st0102Tags) {
+            dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
+        }
+        dataSet.add(std::make_shared<KLVBytes>(misb::st0601::VMTI_LOCAL_SET, vmtiSet.encode()));
+
+        auto dataSetBytes = dataSet.encode();
+
+        std::cout << "[Frame " << frame << "] Heading: " << heading
+                  << ", Pitch: " << pitch
+                  << ", Roll: " << roll
+                  << ", Gimbal rates (az: " << gimbalAzRate
+                  << ", el: " << gimbalElRate
+                  << ") Detection prob: " << detectionProb << '\n';
+        print(dataSetBytes);
+
+        std::cout << "  ST0601 decoded values:\n";
+        for (const auto& t : st0601Tags) {
+            KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
+            auto bytes = leaf.encode();
+            KLVLeaf decoded(std::get<1>(t));
+            decoded.decode(bytes);
+            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        }
+
+        std::cout << "  ST0903 decoded values:\n";
+        for (const auto& t : st0903Tags) {
+            KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
+            auto bytes = leaf.encode();
+            KLVLeaf decoded(std::get<1>(t));
+            decoded.decode(bytes);
+            std::cout << "    " << std::get<0>(t) << ": " << decoded.value() << '\n';
+        }
     }
 
     return 0;
 }
+
