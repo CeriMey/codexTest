@@ -16,7 +16,7 @@ int main() {
     misb::st0903::register_st0903(reg);
 
     using NamedTag = std::tuple<std::string, UL, double>;
-    std::vector<NamedTag> namedTags = {
+    std::vector<NamedTag> st0601Tags = {
         {"Heading", misb::st0601::PLATFORM_HEADING_ANGLE, 90.0},
         {"Elevation", misb::st0601::TARGET_LOCATION_ELEVATION, 1000.0},
         {"Gate width", misb::st0601::TARGET_TRACK_GATE_WIDTH, 256.0},
@@ -36,19 +36,36 @@ int main() {
         {"Wind speed", misb::st0601::WIND_SPEED, 10.0},
         {"Weapon load", misb::st0601::WEAPON_LOAD, 0x1234},
         {"Magnetic heading", misb::st0601::PLATFORM_MAGNETIC_HEADING, 180.0},
-        {"Sensor north velocity", misb::st0601::SENSOR_NORTH_VELOCITY, 30.0},
-        {"Classification", misb::st0102::CLASSIFICATION, 2.0},
-        {"Classification system", misb::st0102::CLASSIFICATION_SYSTEM, 1.0},
-        {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0},
-        {"Detection status", misb::st0903::VMTI_DETECTION_STATUS, 1.0}
+        {"Sensor north velocity", misb::st0601::SENSOR_NORTH_VELOCITY, 30.0}
     };
 
-    std::vector<stanag::TagValue> tags;
-    for (const auto& t : namedTags) {
-        tags.push_back({std::get<1>(t), std::get<2>(t)});
-    }
+    std::vector<NamedTag> st0102Tags = {
+        {"Classification", misb::st0102::CLASSIFICATION, 2.0},
+        {"Classification system", misb::st0102::CLASSIFICATION_SYSTEM, 1.0}
+    };
 
-    auto dataSet = stanag::create_dataset(tags);
+    std::vector<NamedTag> st0903Tags = {
+        {"Target ID", misb::st0903::VMTI_TARGET_ID, 42.0},
+        {"Detection status", misb::st0903::VMTI_DETECTION_STATUS, 1.0},
+        {"Detection probability", misb::st0903::VMTI_DETECTION_PROBABILITY, 0.85}
+    };
+
+    // Build ST0903 local set then embed it using ST0601 tag 74
+    std::vector<stanag::TagValue> vmtiValues;
+    for (const auto& t : st0903Tags) {
+        vmtiValues.push_back({std::get<1>(t), std::get<2>(t)});
+    }
+    KLVSet vmtiSet = stanag::create_dataset(vmtiValues);
+
+    KLVSet dataSet;
+    for (const auto& t : st0601Tags) {
+        dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
+    }
+    for (const auto& t : st0102Tags) {
+        dataSet.add(std::make_shared<KLVLeaf>(std::get<1>(t), std::get<2>(t)));
+    }
+    dataSet.add(std::make_shared<KLVBytes>(misb::st0601::VMTI_LOCAL_SET, vmtiSet.encode()));
+
     auto dataSetBytes = dataSet.encode();
 
     auto print = [](const std::vector<uint8_t>& data) {
@@ -62,7 +79,23 @@ int main() {
     std::cout << "STANAG 4609 dataset bytes: ";
     print(dataSetBytes);
 
-    for (const auto& t : namedTags) {
+    for (const auto& t : st0601Tags) {
+        KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
+        auto bytes = leaf.encode();
+        KLVLeaf decoded(std::get<1>(t));
+        decoded.decode(bytes);
+        std::cout << "Decoded " << std::get<0>(t) << ": " << decoded.value() << '\n';
+    }
+
+    for (const auto& t : st0102Tags) {
+        KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
+        auto bytes = leaf.encode();
+        KLVLeaf decoded(std::get<1>(t));
+        decoded.decode(bytes);
+        std::cout << "Decoded " << std::get<0>(t) << ": " << decoded.value() << '\n';
+    }
+
+    for (const auto& t : st0903Tags) {
         KLVLeaf leaf(std::get<1>(t), std::get<2>(t));
         auto bytes = leaf.encode();
         KLVLeaf decoded(std::get<1>(t));
