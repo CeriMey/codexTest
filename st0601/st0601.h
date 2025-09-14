@@ -73,7 +73,7 @@ extern const UL CORNER_LAT_PT3_FULL;
 extern const UL CORNER_LON_PT3_FULL;
 extern const UL CORNER_LAT_PT4_FULL;
 extern const UL CORNER_LON_PT4_FULL;
-extern const UL PLATFORM_PITCH_ANGLE_FULL;
+extern const UL VMTI_LOCAL_SET;
 extern const UL PLATFORM_ROLL_ANGLE_FULL;
 extern const UL PLATFORM_AOA_FULL;
 extern const UL PLATFORM_SIDESLIP_ANGLE_FULL;

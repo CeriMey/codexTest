@@ -4,6 +4,12 @@ Ce projet gère des paquets KLV en C++11 avec le patron de conception composite.
 Les UL sont regroupées par norme MISB et chaque UL est associée à des lambdas
 pour l'encodage et le décodage dans un registre.
 
+## Organisation
+
+- `core/` contient l'implémentation générique KLV et l'aide `stanag`
+- `st0102/`, `st0601/`, `st0903/` regroupent les balises spécifiques à chaque norme
+- `example/` fournit un programme démontrant l'encodage et le décodage
+
 ## Tags pris en charge
 
 Les exemples fournis couvrent quelques éléments de télémétrie et de détection :
@@ -36,11 +42,16 @@ Les exemples fournis couvrent quelques éléments de télémétrie et de détect
 - `CLASSIFICATION_SYSTEM` (ST0102)
 - `VMTI_TARGET_ID` (ST0903)
 - `VMTI_DETECTION_STATUS` (ST0903)
+- `VMTI_DETECTION_PROBABILITY` (ST0903)
+
+Le jeu de données ST0903 peut être encapsulé dans l'ensemble ST0601 via le
+tag 74 `VMTI_LOCAL_SET`, permettant ainsi de mélanger plusieurs normes dans un
+seul flux KLV.
 
 D'autres balises ST0601 numériques comme l'altitude/latitude de plate-forme
 alternative, les hauteurs ellipsoïdales ou les angles d'attitude complets sont
 également disponibles. Les champs nécessitant des ensembles imbriqués ou des
-chaînes de caractères (Tag 66, 70, 73, 74, 81, 94, 95, etc.) restent hors du
+chaînes de caractères (Tag 66, 70, 73, 81, 94, 95, etc.) restent hors du
 cadre de cet exemple minimaliste.
 
 ## Couche STANAG 4609
@@ -57,12 +68,17 @@ Pour la liste complète des balises et leurs définitions, se reporter à la
 
 ## Compilation
 
-```
-make
+```sh
+mkdir build
+cd build
+cmake ..
+cmake --build .
 ```
 
 ## Exécution
 
-```
-./main
+Depuis le répertoire `build` :
+
+```sh
+./example
 ```

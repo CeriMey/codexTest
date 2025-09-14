@@ -28,6 +28,27 @@ void KLVLeaf::decode(const std::vector<uint8_t>& bytes) {
     value_ = entry->decoder(data);
 }
 
+KLVBytes::KLVBytes(const UL& ul, const std::vector<uint8_t>& value)
+    : ul_(ul), value_(value) {}
+
+std::vector<uint8_t> KLVBytes::encode() const {
+    std::vector<uint8_t> out;
+    out.insert(out.end(), ul_.begin(), ul_.end());
+    out.push_back(static_cast<uint8_t>(value_.size()));
+    out.insert(out.end(), value_.begin(), value_.end());
+    return out;
+}
+
+void KLVBytes::decode(const std::vector<uint8_t>& bytes) {
+    if (bytes.size() < 17) throw std::runtime_error("Too short");
+    UL ul;
+    std::copy(bytes.begin(), bytes.begin() + 16, ul.begin());
+    if (ul != ul_) throw std::runtime_error("UL mismatch");
+    size_t len = bytes[16];
+    if (bytes.size() < 17 + len) throw std::runtime_error("Length mismatch");
+    value_.assign(bytes.begin() + 17, bytes.begin() + 17 + len);
+}
+
 void KLVSet::add(std::shared_ptr<KLVNode> node) {
     children_.push_back(node);
 }
