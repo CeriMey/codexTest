@@ -4,6 +4,8 @@ project(klv)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+enable_testing()
+
 add_library(klv STATIC
     core/klv_leaf.cpp
     core/klv_bytes.cpp
@@ -52,3 +54,11 @@ add_executable(stanag4609_simple
 )
 
 target_link_libraries(stanag4609_simple PRIVATE klv)
+
+add_executable(klv_tests
+    tests/encode_tests.cpp
+)
+
+target_link_libraries(klv_tests PRIVATE klv)
+
+add_test(NAME klv_encode_tests COMMAND klv_tests)

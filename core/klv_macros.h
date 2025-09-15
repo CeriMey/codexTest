@@ -18,9 +18,9 @@
 #define KLV_ST_TAG(ST, TAG) misb::st##ST::TAG
 #define KLV_ST_ITEM(ST, TAG, VALUE) KLV_TAG(KLV_ST_TAG(ST, TAG), VALUE)
 
-// Compose STANAG packets using nested macros
-#define ST_PACKET(...) KLV_SET(__VA_ARGS__)
-#define STANAG4609_PACKET(...) ST_PACKET(__VA_ARGS__)
+// Compose a complete STANAG 4609 packet from tag/value pairs
+#define STANAG4609_PACKET(...) \
+    stanag::create_stanag4609_packet({__VA_ARGS__})
 
 // Dataset manipulation helpers
 #define KLV_ADD_LEAF(dataset, tag, value) \
