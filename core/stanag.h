@@ -24,7 +24,7 @@ struct TagValue {
         : ul(u), value(0.0), set(std::make_shared<KLVSet>(s)) {}
 };
 
-KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul = true, bool with_crc = false);
+KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul = true);
 
 // Assemble a complete STANAG 4609 packet with the outer UAS Datalink UL
 std::vector<uint8_t> create_stanag4609_packet(const std::vector<TagValue>& tags);

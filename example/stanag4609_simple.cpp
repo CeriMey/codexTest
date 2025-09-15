@@ -13,7 +13,7 @@ int main() {
     misb::st0903::register_st0903(reg);
 
     // Build a VMTI local set with 20 detections
-    KLVSet vmti(false, misb::st0903::ST_ID, false);
+    KLVSet vmti(false, misb::st0903::ST_ID);
     for (int i = 1; i <= 20; ++i) {
         vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_TARGET_ID, static_cast<double>(i), true));
         vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_STATUS, static_cast<double>(i % 2), true));
@@ -42,7 +42,12 @@ int main() {
     if (packet.size() < 16 + len_bytes + payload_len) return 0;
     std::vector<uint8_t> payload(packet.begin() + 16 + len_bytes,
                                  packet.begin() + 16 + len_bytes + payload_len);
-    KLVSet decoded(false, misb::st0601::ST_ID, true);
+    // Verify checksum
+    uint16_t crc_stored = (static_cast<uint16_t>(packet[packet.size()-2]) << 8) | packet.back();
+    uint16_t crc_calc = misb::klv_checksum_16(std::vector<uint8_t>(packet.begin(), packet.end()-2));
+    if (crc_stored != crc_calc) return 0;
+    payload.resize(payload.size()-4);
+    KLVSet decoded(false, misb::st0601::ST_ID);
     decoded.decode(payload);
 
     double ts = 0.0, lat = 0.0, lon = 0.0, ver = 0.0;
@@ -55,7 +60,7 @@ int main() {
     std::cout << "Decoded UAS LS version: " << ver << '\n';
 
     // Extract the VMTI detections
-    KLVSet vmti_decoded(false, misb::st0903::ST_ID, false);
+    KLVSet vmti_decoded(false, misb::st0903::ST_ID);
     KLV_GET_SET(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
     std::cout << "Decoded detections:\n";
     size_t idx = 0; double id = 0, status = 0, prob = 0;

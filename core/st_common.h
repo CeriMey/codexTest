@@ -80,4 +80,15 @@ inline bool decode_ber_length(const std::vector<uint8_t>& data,
     return true;
 }
 
+// Compute 16-bit word-sum checksum (used for ST 0601 tag 1)
+inline uint16_t klv_checksum_16(const std::vector<uint8_t>& data) {
+    uint16_t sum = 0;
+    for (size_t i = 0; i < data.size(); ++i) {
+        sum = (sum +
+               (static_cast<uint16_t>(data[i]) << (8 * ((i + 1) % 2)))) &
+              0xFFFF;
+    }
+    return sum;
+}
+
 } // namespace misb
