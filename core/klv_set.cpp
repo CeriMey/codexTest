@@ -52,9 +52,11 @@ void KLVSet::decode(const std::vector<uint8_t>& data) {
                 children_.push_back(bytes);
             }
         } else {
-            if (i + 2 > data.size()) break;
+            if (i + 1 > data.size()) break;
             uint8_t tag = data[i++];
-            size_t len = data[i++];
+            size_t len = 0, len_bytes = 0;
+            if (!misb::decode_ber_length(data, i, len, len_bytes)) break;
+            i += len_bytes;
             if (i + len > data.size()) break;
             UL ul = misb::make_st_ul(st_id_, tag);
             std::vector<uint8_t> value(data.begin() + i, data.begin() + i + len);
@@ -64,7 +66,8 @@ void KLVSet::decode(const std::vector<uint8_t>& data) {
             if (entry) {
                 std::vector<uint8_t> item;
                 item.push_back(tag);
-                item.push_back(static_cast<uint8_t>(len));
+                auto len_vec = misb::encode_ber_length(len);
+                item.insert(item.end(), len_vec.begin(), len_vec.end());
                 item.insert(item.end(), value.begin(), value.end());
                 auto leaf = std::make_shared<KLVLeaf>(ul, 0.0, true);
                 leaf->decode(item);
