@@ -19,7 +19,7 @@ int main() {
         vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_PROBABILITY, 0.5 + 0.01 * i, true));
     }
 
-    // Compose the STANAG 4609 packet
+    // Compose the STANAG 4609 packet (UAS LS version tag added automatically)
     auto packet = STANAG4609_PACKET(
         KLV_ST_ITEM(0601, UNIX_TIMESTAMP, 1700000000.0),
         KLV_ST_ITEM(0601, SENSOR_LATITUDE, 48.8566),
@@ -41,14 +41,18 @@ int main() {
     KLVSet decoded(false, misb::st0601::ST_ID, true);
     decoded.decode(payload);
 
-    double ts = 0.0, lat = 0.0, lon = 0.0;
+    double ts = 0.0, lat = 0.0, lon = 0.0, ver = 0.0;
     ST_GET(decoded, 0601, UNIX_TIMESTAMP, ts);
     ST_GET(decoded, 0601, SENSOR_LATITUDE, lat);
     ST_GET(decoded, 0601, SENSOR_LONGITUDE, lon);
+    ST_GET(decoded, 0601, UAS_LS_VERSION_NUMBER, ver);
     std::cout << "Decoded timestamp: " << ts << '\n';
     std::cout << "Decoded sensor lat/lon: " << lat << ", " << lon << '\n';
+    std::cout << "Decoded UAS LS version: " << ver << '\n';
 
-    KLV_GET_SET_UL(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
+    // Extract the VMTI detections
+    KLVSet vmti_decoded(false, misb::st0903::ST_ID, false);
+    KLV_GET_SET(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
     std::cout << "Decoded detections:\n";
     size_t idx = 0; double id = 0, status = 0, prob = 0;
     KLV_FOR_EACH_CHILD(vmti_decoded, node) {
