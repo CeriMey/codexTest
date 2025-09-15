@@ -1,6 +1,7 @@
 #include "klv_macros.h"
 #include "st0601.h"
 #include "st0903.h"
+#include "st_common.h"
 #include <iostream>
 #include <iomanip>
 #include <memory>
@@ -34,10 +35,13 @@ int main() {
     }
     std::cout << std::dec << '\n';
 
-    // Decode the packet: skip the 16-byte UL and 2-byte length
-    if (packet.size() < 18) return 0;
-    size_t payload_len = (static_cast<size_t>(packet[16]) << 8) | packet[17];
-    std::vector<uint8_t> payload(packet.begin() + 18, packet.begin() + 18 + payload_len);
+    // Decode the packet: skip the 16-byte UL and BER length
+    if (packet.size() <= 16) return 0;
+    size_t payload_len = 0, len_bytes = 0;
+    if (!misb::decode_ber_length(packet, 16, payload_len, len_bytes)) return 0;
+    if (packet.size() < 16 + len_bytes + payload_len) return 0;
+    std::vector<uint8_t> payload(packet.begin() + 16 + len_bytes,
+                                 packet.begin() + 16 + len_bytes + payload_len);
     KLVSet decoded(false, misb::st0601::ST_ID, true);
     decoded.decode(payload);
 

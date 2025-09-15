@@ -1,4 +1,5 @@
 #include "stanag.h"
+#include "st_common.h"
 #include <memory>
 
 namespace stanag {
@@ -24,8 +25,8 @@ std::vector<uint8_t> create_stanag4609_packet(const std::vector<TagValue>& tags)
     std::vector<uint8_t> out;
     out.insert(out.end(), UAS_DATALINK_LOCAL_SET_UL.begin(),
                UAS_DATALINK_LOCAL_SET_UL.end());
-    out.push_back(static_cast<uint8_t>((payload.size() >> 8) & 0xFF));
-    out.push_back(static_cast<uint8_t>(payload.size() & 0xFF));
+    auto len_bytes = misb::encode_ber_length(payload.size());
+    out.insert(out.end(), len_bytes.begin(), len_bytes.end());
     out.insert(out.end(), payload.begin(), payload.end());
     return out;
 }
