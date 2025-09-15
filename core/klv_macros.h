@@ -7,7 +7,7 @@
 // Basic tag and set construction
 #define KLV_TAG(tag, value) stanag::TagValue(tag, value)
 #define KLV_SET(...) stanag::create_dataset({__VA_ARGS__})
-#define KLV_LOCAL_DATASET(...) KLV_SET(__VA_ARGS__)
+#define KLV_LOCAL_DATASET(...) stanag::create_dataset({__VA_ARGS__}, false, true)
 #define KLV_DATASET(tag, ...) KLV_TAG(tag, KLV_SET(__VA_ARGS__))
 
 // ST helper to embed nested datasets

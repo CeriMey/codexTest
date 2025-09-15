@@ -5,7 +5,7 @@
 
 class KLVBytes : public KLVNode {
 public:
-    KLVBytes(const UL& ul, const std::vector<uint8_t>& value = {});
+    KLVBytes(const UL& ul, const std::vector<uint8_t>& value = {}, bool use_tag = false);
     std::vector<uint8_t> encode() const override;
     void decode(const std::vector<uint8_t>& data) override;
     const std::vector<uint8_t>& value() const { return value_; }
@@ -14,4 +14,5 @@ public:
 private:
     UL ul_;
     std::vector<uint8_t> value_;
+    bool use_tag_;
 };
