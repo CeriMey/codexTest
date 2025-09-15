@@ -1,4 +1,5 @@
 #include "klv_bytes.h"
+#include "st_common.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -12,8 +13,8 @@ std::vector<uint8_t> KLVBytes::encode() const {
         out.push_back(static_cast<uint8_t>(value_.size() & 0xFF));
     } else {
         out.insert(out.end(), ul_.begin(), ul_.end());
-        out.push_back(static_cast<uint8_t>((value_.size() >> 8) & 0xFF));
-        out.push_back(static_cast<uint8_t>(value_.size() & 0xFF));
+        auto len_bytes = misb::encode_ber_length(value_.size());
+        out.insert(out.end(), len_bytes.begin(), len_bytes.end());
     }
     out.insert(out.end(), value_.begin(), value_.end());
     return out;
@@ -31,8 +32,12 @@ void KLVBytes::decode(const std::vector<uint8_t>& bytes) {
         UL ul;
         std::copy(bytes.begin(), bytes.begin() + 16, ul.begin());
         if (ul != ul_) throw std::runtime_error("UL mismatch");
-        size_t len = (static_cast<size_t>(bytes[16]) << 8) | bytes[17];
-        if (bytes.size() < 18 + len) throw std::runtime_error("Length mismatch");
-        value_.assign(bytes.begin() + 18, bytes.begin() + 18 + len);
+        size_t len = 0, len_bytes = 0;
+        if (!misb::decode_ber_length(bytes, 16, len, len_bytes))
+            throw std::runtime_error("Length parse error");
+        if (bytes.size() < 16 + len_bytes + len)
+            throw std::runtime_error("Length mismatch");
+        value_.assign(bytes.begin() + 16 + len_bytes,
+                      bytes.begin() + 16 + len_bytes + len);
     }
 }

@@ -3,6 +3,7 @@
 #include "st0601.h"
 #include "st0102.h"
 #include "st0903.h"
+#include "st_common.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -90,15 +91,17 @@ int main() {
         KLV_ST_ITEM(0601, SENSOR_LONGITUDE, 2.0)
     );
     // Verify outer UL
-    assert(packet.size() > 18);
+    assert(packet.size() > 17);
     std::vector<uint8_t> expected_ul = {
         0x06,0x0E,0x2B,0x34,0x02,0x0B,0x01,0x01,
         0x0E,0x01,0x03,0x01,0x01,0x00,0x00,0x00
     };
     assert(std::equal(expected_ul.begin(), expected_ul.end(), packet.begin()));
-    size_t payload_len = (static_cast<size_t>(packet[16]) << 8) | packet[17];
-    assert(payload_len == packet.size() - 18);
-    std::vector<uint8_t> payload(packet.begin() + 18, packet.end());
+    size_t payload_len = 0, len_bytes = 0;
+    bool ok = misb::decode_ber_length(packet, 16, payload_len, len_bytes);
+    assert(ok);
+    assert(payload_len == packet.size() - 16 - len_bytes);
+    std::vector<uint8_t> payload(packet.begin() + 16 + len_bytes, packet.end());
     KLVSet decoded(false, misb::st0601::ST_ID, true);
     decoded.decode(payload);
     double ts = 0.0, flat = 0.0, flon = 0.0, ver = 0.0;
