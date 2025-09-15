@@ -18,6 +18,6 @@ struct TagValue {
         : ul(u), value(0.0), set(std::make_shared<KLVSet>(s)) {}
 };
 
-KLVSet create_dataset(const std::vector<TagValue>& tags);
+KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul = true, bool with_crc = false);
 
 } // namespace stanag

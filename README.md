@@ -57,9 +57,12 @@ cadre de cet exemple minimaliste.
 ## Couche STANAG 4609
 
 La fonction `stanag::create_dataset` assemble automatiquement un `KLVSet`
-à partir d'un vecteur de couples UL/valeur. Cela facilite la création d'un
-jeu de données STANAG 4609 à partir des balises enregistrées des normes
-ST0102, ST0601 et ST0903.
+à partir d'un vecteur de couples UL/valeur. Un second argument permet de
+choisir si les éléments sont encodés avec des UL complets (`true`) ou de
+simples tags (`false`). Un troisième paramètre active si besoin l'ajout
+automatique d'un CRC de fin de trame pour les jeux de données locaux.
+Cela facilite la création d'un jeu de données STANAG 4609 à partir des
+balises enregistrées des normes ST0102, ST0601 et ST0903.
 
 ## Références
 

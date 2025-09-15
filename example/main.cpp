@@ -74,7 +74,7 @@ int main() {
         for (const auto& t : st0903Tags) {
             vmtiValues.push_back({std::get<1>(t), std::get<2>(t)});
         }
-        KLVSet vmtiSet = stanag::create_dataset(vmtiValues);
+        KLVSet vmtiSet = stanag::create_dataset(vmtiValues, false, true);
 
         KLVSet dataSet;
         for (const auto& t : st0601Tags) {
