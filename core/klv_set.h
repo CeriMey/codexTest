@@ -5,7 +5,7 @@
 
 class KLVSet : public KLVNode {
 public:
-    KLVSet(bool use_ul_keys = true, uint8_t st_id = 0, bool with_crc = false);
+    KLVSet(bool use_ul_keys = true, uint8_t st_id = 0);
     void add(std::shared_ptr<KLVNode> node);
     std::vector<uint8_t> encode() const override;
     void decode(const std::vector<uint8_t>& data) override;
@@ -14,5 +14,4 @@ private:
     std::vector<std::shared_ptr<KLVNode>> children_;
     bool use_ul_keys_;
     uint8_t st_id_;
-    bool with_crc_;
 };

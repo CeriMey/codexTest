@@ -17,19 +17,18 @@ int main() {
     misb::st0903::register_st0903(reg);
 
     // ST0601 encoding
-    KLVSet st0601_set(false, misb::st0601::ST_ID, true);
+    KLVSet st0601_set(false, misb::st0601::ST_ID);
     st0601_set.add(std::make_shared<KLVLeaf>(misb::st0601::PLATFORM_HEADING_ANGLE, 90.0, true));
     st0601_set.add(std::make_shared<KLVLeaf>(misb::st0601::SENSOR_LATITUDE, 45.0, true));
     st0601_set.add(std::make_shared<KLVLeaf>(misb::st0601::SENSOR_LONGITUDE, -75.0, true));
     std::vector<uint8_t> expected0601 = {
         0x05,0x02,0x40,0x00,
         0x0D,0x04,0x40,0x00,0x00,0x00,
-        0x0E,0x04,0xCA,0xAA,0xAA,0xAB,
-        0x01,0x02,0x4C,0x0D
+        0x0E,0x04,0xCA,0xAA,0xAA,0xAB
     };
     auto encoded0601 = st0601_set.encode();
     assert(encoded0601 == expected0601);
-    KLVSet decoded0601(false, misb::st0601::ST_ID, true);
+    KLVSet decoded0601(false, misb::st0601::ST_ID);
     decoded0601.decode(encoded0601);
     double heading=0, lat=0, lon=0;
     for (const auto& node : decoded0601.children()) {
@@ -44,13 +43,13 @@ int main() {
     assert(std::fabs(lon - (-75.0)) < 1e-6);
 
     // ST0102 encoding
-    KLVSet st0102_set(false, misb::st0102::ST_ID, false);
+    KLVSet st0102_set(false, misb::st0102::ST_ID);
     st0102_set.add(std::make_shared<KLVLeaf>(misb::st0102::CLASSIFICATION, 2.0, true));
     st0102_set.add(std::make_shared<KLVLeaf>(misb::st0102::CLASSIFICATION_SYSTEM, 1.0, true));
     std::vector<uint8_t> expected0102 = {0x00,0x01,0x02, 0x01,0x01,0x01};
     auto encoded0102 = st0102_set.encode();
     assert(encoded0102 == expected0102);
-    KLVSet decoded0102(false, misb::st0102::ST_ID, false);
+    KLVSet decoded0102(false, misb::st0102::ST_ID);
     decoded0102.decode(encoded0102);
     double cls=0, clsSys=0;
     for (const auto& node : decoded0102.children()) {
@@ -63,7 +62,7 @@ int main() {
     assert(clsSys == 1.0);
 
     // ST0903 encoding
-    KLVSet st0903_set(false, misb::st0903::ST_ID, false);
+    KLVSet st0903_set(false, misb::st0903::ST_ID);
     st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_TARGET_ID, 42.0, true));
     st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_PROBABILITY, 0.5, true));
     std::vector<uint8_t> expected0903 = {
@@ -72,7 +71,7 @@ int main() {
     };
     auto encoded0903 = st0903_set.encode();
     assert(encoded0903 == expected0903);
-    KLVSet decoded0903(false, misb::st0903::ST_ID, false);
+    KLVSet decoded0903(false, misb::st0903::ST_ID);
     decoded0903.decode(encoded0903);
     double id=0, prob=0;
     for (const auto& node : decoded0903.children()) {
@@ -102,7 +101,14 @@ int main() {
     assert(ok);
     assert(payload_len == packet.size() - 16 - len_bytes);
     std::vector<uint8_t> payload(packet.begin() + 16 + len_bytes, packet.end());
-    KLVSet decoded(false, misb::st0601::ST_ID, true);
+    // Verify checksum over the entire packet
+    uint16_t crc_stored = (static_cast<uint16_t>(packet[packet.size() - 2]) << 8) |
+                          packet.back();
+    uint16_t crc_calc = misb::klv_checksum_16(std::vector<uint8_t>(packet.begin(), packet.end() - 2));
+    assert(crc_stored == crc_calc);
+    // Remove checksum TLV from payload before decoding
+    payload.resize(payload.size() - 4);
+    KLVSet decoded(false, misb::st0601::ST_ID);
     decoded.decode(payload);
     double ts = 0.0, flat = 0.0, flon = 0.0, ver = 0.0;
     ST_GET(decoded, 0601, UNIX_TIMESTAMP, ts);
