@@ -101,13 +101,15 @@ int main() {
     std::vector<uint8_t> payload(packet.begin() + 18, packet.end());
     KLVSet decoded(false, misb::st0601::ST_ID, true);
     decoded.decode(payload);
-    double ts = 0.0, flat = 0.0, flon = 0.0;
+    double ts = 0.0, flat = 0.0, flon = 0.0, ver = 0.0;
     ST_GET(decoded, 0601, UNIX_TIMESTAMP, ts);
     ST_GET(decoded, 0601, SENSOR_LATITUDE, flat);
     ST_GET(decoded, 0601, SENSOR_LONGITUDE, flon);
+    ST_GET(decoded, 0601, UAS_LS_VERSION_NUMBER, ver);
     assert(std::fabs(ts - 1700000000.0) < 1e-3);
     assert(std::fabs(flat - 48.0) < 1e-6);
     assert(std::fabs(flon - 2.0) < 1e-6);
+    assert(std::fabs(ver - 12.0) < 1e-6);
 
     return 0;
 }

@@ -2,6 +2,7 @@
 
 #include "klv.h"
 #include "stanag.h"
+#include "st0601.h"
 #include <memory>
 
 // Basic tag and set construction
@@ -19,8 +20,11 @@
 #define KLV_ST_ITEM(ST, TAG, VALUE) KLV_TAG(KLV_ST_TAG(ST, TAG), VALUE)
 
 // Compose a complete STANAG 4609 packet from tag/value pairs
+// Automatically appends the UAS LS version number as the final tag
+// so callers do not need to specify it explicitly.
 #define STANAG4609_PACKET(...) \
-    stanag::create_stanag4609_packet({__VA_ARGS__})
+    stanag::create_stanag4609_packet({__VA_ARGS__, \
+                                      KLV_ST_ITEM(0601, UAS_LS_VERSION_NUMBER, 12.0)})
 
 // Dataset manipulation helpers
 #define KLV_ADD_LEAF(dataset, tag, value) \
