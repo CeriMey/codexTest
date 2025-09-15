@@ -17,4 +17,17 @@ KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul, bool with_
     return set;
 }
 
+std::vector<uint8_t> create_stanag4609_packet(const std::vector<TagValue>& tags) {
+    // ST0601 payload uses local tags with a trailing CRC
+    KLVSet payload_set = create_dataset(tags, false, true);
+    auto payload = payload_set.encode();
+    std::vector<uint8_t> out;
+    out.insert(out.end(), UAS_DATALINK_LOCAL_SET_UL.begin(),
+               UAS_DATALINK_LOCAL_SET_UL.end());
+    out.push_back(static_cast<uint8_t>((payload.size() >> 8) & 0xFF));
+    out.push_back(static_cast<uint8_t>(payload.size() & 0xFF));
+    out.insert(out.end(), payload.begin(), payload.end());
+    return out;
+}
+
 } // namespace stanag
