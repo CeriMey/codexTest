@@ -120,5 +120,17 @@ int main() {
     assert(std::fabs(flon - 2.0) < 1e-6);
     assert(std::fabs(ver - 12.0) < 1e-6);
 
+    // Test BER long-form length for tag-based items
+    std::vector<uint8_t> big_vec(130, 0xAB);
+    UL big_ul = misb::make_st_ul(misb::st0601::ST_ID, 0x7F);
+    KLVBytes big_bytes(big_ul, big_vec, true);
+    auto encoded_big = big_bytes.encode();
+    assert(encoded_big[0] == 0x7F);
+    assert(encoded_big[1] == 0x81 && encoded_big[2] == 0x82);
+    assert(encoded_big.size() == 1 + 2 + big_vec.size());
+    KLVBytes big_bytes_dec(big_ul, {}, true);
+    big_bytes_dec.decode(encoded_big);
+    assert(big_bytes_dec.value() == big_vec);
+
     return 0;
 }
