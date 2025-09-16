@@ -43,6 +43,36 @@ inline double decode_uint(const std::vector<uint8_t>& bytes, size_t width) {
     return static_cast<double>(raw);
 }
 
+inline std::vector<uint8_t> encode_uint_variable(double value, size_t max_width) {
+    if (max_width == 0 || max_width > 8) {
+        return {};
+    }
+    const uint64_t max_value = max_width == 8 ? std::numeric_limits<uint64_t>::max()
+                                              : ((uint64_t{1} << (max_width * 8)) - 1);
+    const double clamped = clamp(value, 0.0, static_cast<double>(max_value));
+    uint64_t raw = static_cast<uint64_t>(std::llround(clamped));
+    size_t width = 1;
+    while (width < max_width && (raw >> (width * 8)) != 0) {
+        ++width;
+    }
+    std::vector<uint8_t> bytes(width, 0u);
+    for (size_t i = 0; i < width; ++i) {
+        bytes[width - 1 - i] = static_cast<uint8_t>((raw >> (i * 8)) & 0xFFu);
+    }
+    return bytes;
+}
+
+inline double decode_uint_variable(const std::vector<uint8_t>& bytes, size_t max_width) {
+    if (bytes.empty() || bytes.size() > max_width || max_width == 0 || max_width > 8) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    uint64_t raw = 0;
+    for (uint8_t b : bytes) {
+        raw = (raw << 8) | b;
+    }
+    return static_cast<double>(raw);
+}
+
 inline std::vector<uint8_t> encode_probability(double value) {
     const double clamped = clamp(value, 0.0, 1.0);
     const uint8_t raw = static_cast<uint8_t>(std::lround(clamped * 255.0));
@@ -255,18 +285,18 @@ void register_st0903(KLVRegistry& reg) {
     });
 
     reg.register_ul(VTARGET_CENTROID, {
-        [](double v) { return encode_uint_width(v, 4); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 4); }
+        [](double v) { return encode_uint_variable(v, 6); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 6); }
     });
 
     reg.register_ul(VTARGET_BBOX_TOP_LEFT_PIXEL, {
-        [](double v) { return encode_uint_width(v, 4); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 4); }
+        [](double v) { return encode_uint_variable(v, 6); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 6); }
     });
 
     reg.register_ul(VTARGET_BBOX_BOTTOM_RIGHT_PIXEL, {
-        [](double v) { return encode_uint_width(v, 4); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 4); }
+        [](double v) { return encode_uint_variable(v, 6); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 6); }
     });
 
     reg.register_ul(VTARGET_PRIORITY, {
@@ -280,8 +310,8 @@ void register_st0903(KLVRegistry& reg) {
     });
 
     reg.register_ul(VTARGET_HISTORY, {
-        [](double v) { return encode_uint_width(v, 2); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 2); }
+        [](double v) { return encode_uint_variable(v, 2); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 2); }
     });
 
     reg.register_ul(VTARGET_PERCENT_TARGET_PIXELS, {
@@ -295,8 +325,8 @@ void register_st0903(KLVRegistry& reg) {
     });
 
     reg.register_ul(VTARGET_INTENSITY, {
-        [](double v) { return encode_uint_width(v, 3); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 3); }
+        [](double v) { return encode_uint_variable(v, 3); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 3); }
     });
 
     reg.register_ul(VTARGET_LOCATION_OFFSET_LAT, {
@@ -335,18 +365,18 @@ void register_st0903(KLVRegistry& reg) {
     });
 
     reg.register_ul(VTARGET_CENTROID_ROW, {
-        [](double v) { return encode_uint_width(v, 4); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 4); }
+        [](double v) { return encode_uint_variable(v, 4); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 4); }
     });
 
     reg.register_ul(VTARGET_CENTROID_COLUMN, {
-        [](double v) { return encode_uint_width(v, 4); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 4); }
+        [](double v) { return encode_uint_variable(v, 4); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 4); }
     });
 
     reg.register_ul(VTARGET_ALGORITHM_ID, {
-        [](double v) { return encode_uint_width(v, 3); },
-        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 3); }
+        [](double v) { return encode_uint_variable(v, 3); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_variable(bytes, 3); }
     });
 
     reg.register_ul(VTARGET_DETECTION_STATUS, {
@@ -449,6 +479,9 @@ std::vector<uint8_t> encode_vtarget_series(const std::vector<VTargetPack>& packs
     for (const auto& pack : packs) {
         if (!seen_ids.insert(pack.target_id).second) {
             throw std::runtime_error("Duplicate targetId in vTarget series");
+        }
+        if (pack.set.uses_ul_keys()) {
+            throw std::runtime_error("VTarget pack must be encoded using Tag-Length-Value items");
         }
         auto set_bytes = pack.set.encode();
         if (set_bytes.empty()) {
