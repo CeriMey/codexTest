@@ -9,6 +9,9 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <string>
+#include <stdexcept>
+#include <limits>
 
 int main() {
     auto& reg = KLVRegistry::instance();
@@ -72,6 +75,14 @@ int main() {
     misb::st0903::VTargetPack pack{42u, stanag::create_dataset(vtarget_entries, false)};
     auto vtarget_series = misb::st0903::encode_vtarget_series({pack});
 
+    bool duplicate_error = false;
+    try {
+        misb::st0903::encode_vtarget_series({pack, pack});
+    } catch (const std::runtime_error&) {
+        duplicate_error = true;
+    }
+    assert(duplicate_error);
+
     KLVSet st0903_set(false, misb::st0903::ST_ID);
     st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_FRAME_WIDTH, 1920.0, true));
     st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_FRAME_HEIGHT, 1080.0, true));
@@ -106,6 +117,54 @@ int main() {
     }
     assert(width == 1920.0);
     assert(height == 1080.0);
+
+    auto ascii = [](const std::string& s) {
+        return std::vector<uint8_t>(s.begin(), s.end());
+    };
+
+    auto find_value = [](const KLVSet& set, const UL& ul) {
+        for (const auto& node : set.children()) {
+            if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
+                if (leaf->ul() == ul) {
+                    return leaf->value();
+                }
+            }
+        }
+        return std::numeric_limits<double>::quiet_NaN();
+    };
+
+    auto algorithm_series = KLV_ALGORITHM_SERIES(
+        KLV_ALGORITHM_SET(
+            KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_ID, 7.0),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, ascii("Detector")),
+            KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CONFIDENCE, 0.75)
+        ),
+        KLV_ALGORITHM_SET(
+            KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_ID, 8.0),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, ascii("Tracker")),
+            KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CONFIDENCE, 0.6)
+        )
+    );
+
+    auto ontology_series = KLV_ONTOLOGY_SERIES(
+        KLV_ONTOLOGY_SET(
+            KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_ID, 301.0),
+            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_URI, ascii("urn:test:vehicle")),
+            KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_CONFIDENCE, 0.8)
+        )
+    );
+
+    auto decoded_algorithms = misb::st0903::decode_algorithm_series(algorithm_series);
+    assert(decoded_algorithms.size() == 2);
+    double alg0_id = find_value(decoded_algorithms[0], misb::st0903::ALGORITHM_ID);
+    double alg1_id = find_value(decoded_algorithms[1], misb::st0903::ALGORITHM_ID);
+    assert(std::fabs(alg0_id - 7.0) < 1e-6);
+    assert(std::fabs(alg1_id - 8.0) < 1e-6);
+
+    auto decoded_ontologies = misb::st0903::decode_ontology_series(ontology_series);
+    assert(decoded_ontologies.size() == 1);
+    double ontology_id = find_value(decoded_ontologies.front(), misb::st0903::ONTOLOGY_ID);
+    assert(std::fabs(ontology_id - 301.0) < 1e-6);
 
     // STANAG 4609 packet assembly
     auto packet = STANAG4609_PACKET(

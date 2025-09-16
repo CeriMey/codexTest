@@ -40,16 +40,18 @@ Les exemples fournis couvrent quelques éléments de télémétrie et de détect
 - `CORNER_LON_PT1_FULL`
 - `CLASSIFICATION` (ST0102)
 - `CLASSIFICATION_SYSTEM` (ST0102)
-- `VMTI_VTARGET_SERIES` et les balises `VTARGET_*` associées pour modéliser une
-  détection VMTI complète (ST0903)
+- `VMTI_VTARGET_SERIES`, `VMTI_ALGORITHM_SERIES`, `VMTI_ONTOLOGY_SERIES` et les
+  balises `VTARGET_*` associées pour modéliser une détection VMTI complète ainsi
+  que ses algorithmes et ontologies (ST0903)
 
 Le jeu de données ST0903 peut être encapsulé dans l'ensemble ST0601 via le
 tag 74 `VMTI_LOCAL_SET`, permettant ainsi de mélanger plusieurs normes dans un
 seul flux KLV.
 
-Le module propose également des aides `encode_vtarget_series` et
-`decode_vtarget_series` pour sérialiser une série de packs vTarget conformes à
-la norme ST 0903 (balise 101) et retrouver facilement les détections codées.
+Le module propose également des aides `encode_vtarget_series`,
+`encode_algorithm_series`, `encode_ontology_series` ainsi que leurs fonctions
+de décodage pour sérialiser les différentes séries ST 0903 (balises 101, 102 et
+103) et retrouver facilement les détections, algorithmes et ontologies codés.
 
 D'autres balises ST0601 numériques comme l'altitude/latitude de plate-forme
 alternative, les hauteurs ellipsoïdales ou les angles d'attitude complets sont

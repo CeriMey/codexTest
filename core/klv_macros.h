@@ -12,6 +12,17 @@
 #define KLV_LOCAL_DATASET(...) stanag::create_dataset({__VA_ARGS__}, false)
 #define KLV_DATASET(tag, ...) KLV_TAG(tag, KLV_SET(__VA_ARGS__))
 
+#define KLV_LOCAL_LEAF(tag, value) std::make_shared<KLVLeaf>(tag, value, true)
+#define KLV_LOCAL_BYTES(tag, bytes) std::make_shared<KLVBytes>(tag, bytes, true)
+
+#define KLV_VTARGET_SERIES(...) misb::st0903::encode_vtarget_series({__VA_ARGS__})
+#define KLV_ALGORITHM_SET(...) \
+    misb::st0903::make_local_set(misb::st0903::ALGORITHM_ST_ID, {__VA_ARGS__})
+#define KLV_ONTOLOGY_SET(...) \
+    misb::st0903::make_local_set(misb::st0903::ONTOLOGY_ST_ID, {__VA_ARGS__})
+#define KLV_ALGORITHM_SERIES(...) misb::st0903::encode_algorithm_series({__VA_ARGS__})
+#define KLV_ONTOLOGY_SERIES(...) misb::st0903::encode_ontology_series({__VA_ARGS__})
+
 // Helper to assemble a VTarget pack with local-tag encoding
 #define KLV_VTARGET_PACK(ID, ...)                                                      \
     misb::st0903::VTargetPack{static_cast<uint64_t>(ID), KLV_LOCAL_DATASET(__VA_ARGS__)}
