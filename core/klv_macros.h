@@ -3,6 +3,7 @@
 #include "klv.h"
 #include "stanag.h"
 #include "st0601.h"
+#include "st0903.h"
 #include <memory>
 
 // Basic tag and set construction
@@ -10,6 +11,10 @@
 #define KLV_SET(...) stanag::create_dataset({__VA_ARGS__})
 #define KLV_LOCAL_DATASET(...) stanag::create_dataset({__VA_ARGS__}, false)
 #define KLV_DATASET(tag, ...) KLV_TAG(tag, KLV_SET(__VA_ARGS__))
+
+// Helper to assemble a VTarget pack with local-tag encoding
+#define KLV_VTARGET_PACK(ID, ...)                                                      \
+    misb::st0903::VTargetPack{static_cast<uint64_t>(ID), KLV_LOCAL_DATASET(__VA_ARGS__)}
 
 // ST helper to embed nested datasets
 #define KLV_ST_DATASET(ST, TAG, ...) \
@@ -29,8 +34,11 @@
 // Dataset manipulation helpers
 #define KLV_ADD_LEAF(dataset, tag, value) \
     dataset.add(std::make_shared<KLVLeaf>(tag, value))
-#define KLV_ADD_BYTES(dataset, tag, bytes) \
-    dataset.add(std::make_shared<KLVBytes>(tag, bytes))
+#define KLV_ADD_BYTES(dataset, tag, bytes)                                             \
+    do {                                                                              \
+        bool __klv_use_tag = !(dataset).uses_ul_keys();                               \
+        (dataset).add(std::make_shared<KLVBytes>(tag, bytes, __klv_use_tag));         \
+    } while (0)
 
 // Decode and extract values
 #define KLV_DECODE_SET(dataset, bytes) \
