@@ -19,6 +19,13 @@ int main() {
     misb::st0102::register_st0102(reg);
     misb::st0903::register_st0903(reg);
 
+    // Ensure the VTarget centroid uses minimal TLV encoding (value 409600 -> 0x064000)
+    KLVSet centroid_only(false, misb::st0903::VTARGET_ST_ID);
+    centroid_only.add(std::make_shared<KLVLeaf>(misb::st0903::VTARGET_CENTROID, 409600.0, true));
+    std::vector<uint8_t> expected_centroid_bytes = {0x01, 0x03, 0x06, 0x40, 0x00};
+    auto encoded_centroid = centroid_only.encode();
+    assert(encoded_centroid == expected_centroid_bytes);
+
     // ST0601 encoding
     KLVSet st0601_set(false, misb::st0601::ST_ID);
     st0601_set.add(std::make_shared<KLVLeaf>(misb::st0601::PLATFORM_HEADING_ANGLE, 90.0, true));
@@ -74,6 +81,19 @@ int main() {
     };
     misb::st0903::VTargetPack pack{42u, stanag::create_dataset(vtarget_entries, false)};
     auto vtarget_series = misb::st0903::encode_vtarget_series({pack});
+
+    std::vector<stanag::TagValue> invalid_entries = {
+        {misb::st0903::VTARGET_CENTROID, 1.0}
+    };
+    misb::st0903::VTargetPack invalid_pack{7u, stanag::create_dataset(invalid_entries)};
+
+    bool tlv_structure_error = false;
+    try {
+        misb::st0903::encode_vtarget_series({invalid_pack});
+    } catch (const std::runtime_error&) {
+        tlv_structure_error = true;
+    }
+    assert(tlv_structure_error);
 
     bool duplicate_error = false;
     try {
