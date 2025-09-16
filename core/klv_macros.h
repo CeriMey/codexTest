@@ -4,7 +4,78 @@
 #include "stanag.h"
 #include "st0601.h"
 #include "st0903.h"
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <memory>
+#include <string>
+#include <vector>
+
+namespace misb {
+
+namespace detail {
+
+inline std::vector<uint8_t> to_ascii_bytes_impl(const char* text, size_t length) {
+    if (!text || length == 0) {
+        return {};
+    }
+    std::vector<uint8_t> bytes;
+    bytes.reserve(length);
+    for (size_t i = 0; i < length; ++i) {
+        bytes.push_back(static_cast<uint8_t>(static_cast<unsigned char>(text[i])));
+    }
+    return bytes;
+}
+
+} // namespace detail
+
+inline std::vector<uint8_t> to_ascii_bytes(const std::string& text) {
+    return detail::to_ascii_bytes_impl(text.data(), text.size());
+}
+
+inline std::vector<uint8_t> to_ascii_bytes(const char* text) {
+    if (!text) {
+        return {};
+    }
+    return detail::to_ascii_bytes_impl(text, std::strlen(text));
+}
+
+template <size_t N>
+inline std::vector<uint8_t> to_ascii_bytes(const char (&text)[N]) {
+    return detail::to_ascii_bytes_impl(text, N ? N - 1 : 0);
+}
+
+namespace st0903 {
+
+inline uint64_t target_centroid_pixel_index(double row,
+                                            double column,
+                                            double frame_width) {
+    if (!std::isfinite(row) || !std::isfinite(column) ||
+        !std::isfinite(frame_width) || frame_width <= 0.0) {
+        return 0u;
+    }
+    const double raw_index = column + ((row - 1.0) * frame_width);
+    const double clamped_min = std::max(raw_index, 1.0);
+    const double max_value = static_cast<double>(0xFFFFFFFFFFFFull);
+    const double clamped = std::min(clamped_min, max_value);
+    return static_cast<uint64_t>(std::llround(clamped));
+}
+
+inline double target_centroid_pixel(double row,
+                                    double column,
+                                    double frame_width) {
+    return static_cast<double>(target_centroid_pixel_index(row, column, frame_width));
+}
+
+} // namespace st0903
+
+} // namespace misb
+
+#define KLV_ASCII_BYTES(text) ::misb::to_ascii_bytes(text)
+#define KLV_PIXEL_NUMBER(row, column, frame_width) \
+    ::misb::st0903::target_centroid_pixel(row, column, frame_width)
 
 // Basic tag and set construction
 #define KLV_TAG(tag, value) stanag::TagValue(tag, value)
