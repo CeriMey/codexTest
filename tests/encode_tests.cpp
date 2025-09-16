@@ -61,27 +61,51 @@ int main() {
     assert(cls == 2.0);
     assert(clsSys == 1.0);
 
-    // ST0903 encoding
-    KLVSet st0903_set(false, misb::st0903::ST_ID);
-    st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_TARGET_ID, 42.0, true));
-    st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_PROBABILITY, 0.5, true));
-    std::vector<uint8_t> expected0903 = {
-        0x00,0x02,0x00,0x2A,
-        0x02,0x01,0x7F
+    // ST0903 encoding (top-level metadata and vTarget series)
+    std::vector<stanag::TagValue> vtarget_entries = {
+        {misb::st0903::VTARGET_CENTROID, 1234.0},
+        {misb::st0903::VTARGET_CENTROID_ROW, 25.0},
+        {misb::st0903::VTARGET_CENTROID_COLUMN, 50.0},
+        {misb::st0903::VTARGET_CONFIDENCE_LEVEL, 0.5},
+        {misb::st0903::VTARGET_DETECTION_STATUS, 1.0}
     };
+    misb::st0903::VTargetPack pack{42u, stanag::create_dataset(vtarget_entries, false)};
+    auto vtarget_series = misb::st0903::encode_vtarget_series({pack});
+
+    KLVSet st0903_set(false, misb::st0903::ST_ID);
+    st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_FRAME_WIDTH, 1920.0, true));
+    st0903_set.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_FRAME_HEIGHT, 1080.0, true));
+    st0903_set.add(std::make_shared<KLVBytes>(misb::st0903::VMTI_VTARGET_SERIES, vtarget_series, true));
+
     auto encoded0903 = st0903_set.encode();
-    assert(encoded0903 == expected0903);
     KLVSet decoded0903(false, misb::st0903::ST_ID);
     decoded0903.decode(encoded0903);
-    double id=0, prob=0;
+    double width = 0.0, height = 0.0;
     for (const auto& node : decoded0903.children()) {
         if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
-            if (leaf->ul() == misb::st0903::VMTI_TARGET_ID) id = leaf->value();
-            else if (leaf->ul() == misb::st0903::VMTI_DETECTION_PROBABILITY) prob = leaf->value();
+            if (leaf->ul() == misb::st0903::VMTI_FRAME_WIDTH) width = leaf->value();
+            else if (leaf->ul() == misb::st0903::VMTI_FRAME_HEIGHT) height = leaf->value();
+        } else if (auto bytes = std::dynamic_pointer_cast<KLVBytes>(node)) {
+            if (bytes->ul() == misb::st0903::VMTI_VTARGET_SERIES) {
+                auto decoded_packs = misb::st0903::decode_vtarget_series(bytes->value());
+                assert(decoded_packs.size() == 1);
+                assert(decoded_packs.front().target_id == 42u);
+                const auto& vset = decoded_packs.front().set;
+                double centroid = 0.0;
+                double confidence = 0.0;
+                for (const auto& child : vset.children()) {
+                    if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(child)) {
+                        if (leaf->ul() == misb::st0903::VTARGET_CENTROID) centroid = leaf->value();
+                        else if (leaf->ul() == misb::st0903::VTARGET_CONFIDENCE_LEVEL) confidence = leaf->value();
+                    }
+                }
+                assert(std::fabs(centroid - 1234.0) < 1e-6);
+                assert(std::fabs(confidence - 0.5) < 1e-6);
+            }
         }
     }
-    assert(id == 42.0);
-    assert(std::fabs(prob - 0.5) < 1e-2);
+    assert(width == 1920.0);
+    assert(height == 1080.0);
 
     // STANAG 4609 packet assembly
     auto packet = STANAG4609_PACKET(

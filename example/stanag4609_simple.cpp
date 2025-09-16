@@ -6,19 +6,56 @@
 #include <iomanip>
 #include <memory>
 #include <vector>
+#include <limits>
+
+static double pixel_index(double row, double column, double frameWidth) {
+    return column + ((row - 1.0) * frameWidth);
+}
+
+static double get_value(const KLVSet& set, const UL& ul) {
+    for (const auto& node : set.children()) {
+        if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
+            if (leaf->ul() == ul) return leaf->value();
+        }
+    }
+    return std::numeric_limits<double>::quiet_NaN();
+}
 
 int main() {
     auto& reg = KLVRegistry::instance();
     misb::st0601::register_st0601(reg);
     misb::st0903::register_st0903(reg);
 
+    const double frameWidth = 1920.0;
+
     // Build a VMTI local set with 20 detections
-    KLVSet vmti(false, misb::st0903::ST_ID);
+    std::vector<misb::st0903::VTargetPack> packs;
+    packs.reserve(20);
     for (int i = 1; i <= 20; ++i) {
-        vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_TARGET_ID, static_cast<double>(i), true));
-        vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_STATUS, static_cast<double>(i % 2), true));
-        vmti.add(std::make_shared<KLVLeaf>(misb::st0903::VMTI_DETECTION_PROBABILITY, 0.5 + 0.01 * i, true));
+        double row = 100.0 + i * 5.0;
+        double col = 200.0 + i * 3.0;
+        double confidence = 0.4 + 0.01 * static_cast<double>(i);
+        double status = (i % 2 == 0) ? 1.0 : 0.0;
+        packs.push_back(KLV_VTARGET_PACK(
+            i,
+            KLV_TAG(misb::st0903::VTARGET_CENTROID, pixel_index(row, col, frameWidth)),
+            KLV_TAG(misb::st0903::VTARGET_CENTROID_ROW, row),
+            KLV_TAG(misb::st0903::VTARGET_CENTROID_COLUMN, col),
+            KLV_TAG(misb::st0903::VTARGET_CONFIDENCE_LEVEL, confidence),
+            KLV_TAG(misb::st0903::VTARGET_DETECTION_STATUS, status)
+        ));
     }
+
+    auto series = misb::st0903::encode_vtarget_series(packs);
+
+    const double detectionCount = 20.0;
+    KLVSet vmti = KLV_LOCAL_DATASET(
+        KLV_TAG(misb::st0903::VMTI_LS_VERSION, 6.0),
+        KLV_TAG(misb::st0903::VMTI_TOTAL_TARGETS_DETECTED, detectionCount),
+        KLV_TAG(misb::st0903::VMTI_NUM_TARGETS_REPORTED, detectionCount),
+        KLV_TAG(misb::st0903::VMTI_FRAME_WIDTH, frameWidth)
+    );
+    KLV_ADD_BYTES(vmti, misb::st0903::VMTI_VTARGET_SERIES, series);
 
     // Compose the STANAG 4609 packet (UAS LS version tag added automatically)
     auto packet = STANAG4609_PACKET(
@@ -63,22 +100,26 @@ int main() {
     KLVSet vmti_decoded(false, misb::st0903::ST_ID);
     KLV_GET_SET(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
     std::cout << "Decoded detections:\n";
-    size_t idx = 0; double id = 0, status = 0, prob = 0;
-    KLV_FOR_EACH_CHILD(vmti_decoded, node) {
-        auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node);
-        if (!leaf) continue;
-        if (idx % 3 == 0) {
-            id = leaf->value();
-        } else if (idx % 3 == 1) {
-            status = leaf->value();
-        } else {
-            prob = leaf->value();
-            std::cout << "  ID " << id
-                      << " status " << status
-                      << " prob " << prob << '\n';
+    for (const auto& node : vmti_decoded.children()) {
+        if (auto bytesNode = std::dynamic_pointer_cast<KLVBytes>(node)) {
+            if (bytesNode->ul() == misb::st0903::VMTI_VTARGET_SERIES) {
+                auto decodedPacks = misb::st0903::decode_vtarget_series(bytesNode->value());
+                for (const auto& pack : decodedPacks) {
+                    double centroid = get_value(pack.set, misb::st0903::VTARGET_CENTROID);
+                    double row = get_value(pack.set, misb::st0903::VTARGET_CENTROID_ROW);
+                    double col = get_value(pack.set, misb::st0903::VTARGET_CENTROID_COLUMN);
+                    double conf = get_value(pack.set, misb::st0903::VTARGET_CONFIDENCE_LEVEL);
+                    double status = get_value(pack.set, misb::st0903::VTARGET_DETECTION_STATUS);
+                    std::cout << "  ID " << pack.target_id
+                              << " centroid " << centroid
+                              << " (row,col)=(" << row << ", " << col << ")"
+                              << " conf " << conf
+                              << " status " << status << '\n';
+                }
+            }
         }
-        ++idx;
     }
 
     return 0;
 }
+
