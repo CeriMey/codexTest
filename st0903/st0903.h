@@ -4,6 +4,7 @@
 #include "st_common.h"
 
 #include <cstdint>
+#include <initializer_list>
 #include <vector>
 
 namespace misb {
@@ -11,6 +12,8 @@ namespace st0903 {
 
 constexpr uint8_t ST_ID = 0x03;
 constexpr uint8_t VTARGET_ST_ID = 0x13;
+constexpr uint8_t ALGORITHM_ST_ID = 0x14;
+constexpr uint8_t ONTOLOGY_ST_ID = 0x15;
 
 #define ST0903_LOCAL_SET_TAGS(X) \
     X(VMTI_CHECKSUM, 1) \
@@ -72,6 +75,29 @@ ST0903_VTARGET_TAGS(DEFINE_VTARGET_UL)
 #undef DEFINE_VTARGET_UL
 #undef ST0903_VTARGET_TAGS
 
+#define ST0903_ALGORITHM_TAGS(X) \
+    X(ALGORITHM_ID, 1) \
+    X(ALGORITHM_NAME, 2) \
+    X(ALGORITHM_VERSION, 3) \
+    X(ALGORITHM_CLASS, 4) \
+    X(ALGORITHM_CONFIDENCE, 5)
+
+#define DEFINE_ALGORITHM_UL(name, tag) constexpr UL name = make_st_ul(ALGORITHM_ST_ID, tag);
+ST0903_ALGORITHM_TAGS(DEFINE_ALGORITHM_UL)
+#undef DEFINE_ALGORITHM_UL
+#undef ST0903_ALGORITHM_TAGS
+
+#define ST0903_ONTOLOGY_TAGS(X) \
+    X(ONTOLOGY_ID, 1) \
+    X(ONTOLOGY_URI, 2) \
+    X(ONTOLOGY_CONFIDENCE, 3) \
+    X(ONTOLOGY_FAMILY, 4)
+
+#define DEFINE_ONTOLOGY_UL(name, tag) constexpr UL name = make_st_ul(ONTOLOGY_ST_ID, tag);
+ST0903_ONTOLOGY_TAGS(DEFINE_ONTOLOGY_UL)
+#undef DEFINE_ONTOLOGY_UL
+#undef ST0903_ONTOLOGY_TAGS
+
 struct VTargetPack {
     uint64_t target_id;
     KLVSet set;
@@ -80,9 +106,24 @@ struct VTargetPack {
 // Register encode/decode lambdas for the above ULs
 void register_st0903(KLVRegistry& reg);
 
+// Helper to build a tag-based local set for a given ST0903 sub-set
+KLVSet make_local_set(uint8_t st_id,
+                      std::initializer_list<std::shared_ptr<KLVNode>> nodes);
+
 // Helpers to build and parse the VTarget series payload (tag 101)
 std::vector<uint8_t> encode_vtarget_series(const std::vector<VTargetPack>& packs);
+std::vector<uint8_t> encode_vtarget_series(std::initializer_list<VTargetPack> packs);
 std::vector<VTargetPack> decode_vtarget_series(const std::vector<uint8_t>& bytes);
+
+// Helpers for algorithmSeries (tag 102)
+std::vector<uint8_t> encode_algorithm_series(const std::vector<KLVSet>& sets);
+std::vector<uint8_t> encode_algorithm_series(std::initializer_list<KLVSet> sets);
+std::vector<KLVSet> decode_algorithm_series(const std::vector<uint8_t>& bytes);
+
+// Helpers for ontologySeries (tag 103)
+std::vector<uint8_t> encode_ontology_series(const std::vector<KLVSet>& sets);
+std::vector<uint8_t> encode_ontology_series(std::initializer_list<KLVSet> sets);
+std::vector<KLVSet> decode_ontology_series(const std::vector<uint8_t>& bytes);
 
 } // namespace st0903
 } // namespace misb

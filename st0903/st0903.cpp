@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <set>
 #include <stdexcept>
 
 namespace misb {
@@ -352,13 +353,108 @@ void register_st0903(KLVRegistry& reg) {
         [](double v) { return encode_status(v); },
         [](const std::vector<uint8_t>& bytes) { return decode_status(bytes); }
     });
+
+    reg.register_ul(ALGORITHM_ID, {
+        [](double v) { return encode_uint_width(v, 2); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 2); }
+    });
+
+    reg.register_ul(ALGORITHM_CLASS, {
+        [](double v) { return encode_uint_width(v, 1); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 1); }
+    });
+
+    reg.register_ul(ALGORITHM_CONFIDENCE, {
+        [](double v) { return encode_probability_percent(v); },
+        [](const std::vector<uint8_t>& bytes) { return decode_probability_percent(bytes); }
+    });
+
+    reg.register_ul(ONTOLOGY_ID, {
+        [](double v) { return encode_uint_width(v, 2); },
+        [](const std::vector<uint8_t>& bytes) { return decode_uint_width(bytes, 2); }
+    });
+
+    reg.register_ul(ONTOLOGY_CONFIDENCE, {
+        [](double v) { return encode_probability_percent(v); },
+        [](const std::vector<uint8_t>& bytes) { return decode_probability_percent(bytes); }
+    });
+}
+
+namespace {
+
+std::vector<uint8_t> encode_local_set_series(const std::vector<KLVSet>& sets) {
+    std::vector<uint8_t> output;
+    for (const auto& set : sets) {
+        auto bytes = set.encode();
+        if (bytes.empty()) {
+            throw std::runtime_error("Local set in series must contain at least one item");
+        }
+        auto len_bytes = misb::encode_ber_length(bytes.size());
+        output.insert(output.end(), len_bytes.begin(), len_bytes.end());
+        output.insert(output.end(), bytes.begin(), bytes.end());
+    }
+    return output;
+}
+
+std::vector<KLVSet> decode_local_set_series(const std::vector<uint8_t>& bytes,
+                                            uint8_t st_id) {
+    std::vector<KLVSet> sets;
+    size_t offset = 0;
+    while (offset < bytes.size()) {
+        size_t len = 0;
+        size_t len_bytes = 0;
+        if (!misb::decode_ber_length(bytes, offset, len, len_bytes)) {
+            throw std::runtime_error("Invalid BER length inside series");
+        }
+        offset += len_bytes;
+        if (offset + len > bytes.size()) {
+            throw std::runtime_error("Truncated local set inside series");
+        }
+        std::vector<uint8_t> payload(bytes.begin() + static_cast<long>(offset),
+                                     bytes.begin() + static_cast<long>(offset + len));
+        if (payload.empty()) {
+            throw std::runtime_error("Series element must not be empty");
+        }
+        KLVSet set(false, st_id);
+        set.decode(payload);
+        sets.push_back(std::move(set));
+        offset += len;
+    }
+    if (offset != bytes.size()) {
+        throw std::runtime_error("Excess data while decoding series");
+    }
+    return sets;
+}
+
+} // namespace
+
+KLVSet make_local_set(uint8_t st_id,
+                      std::initializer_list<std::shared_ptr<KLVNode>> nodes) {
+    KLVSet set(false, st_id);
+    for (const auto& node : nodes) {
+        if (!node) {
+            throw std::invalid_argument("Null node passed to make_local_set");
+        }
+        set.add(node);
+    }
+    if (set.children().empty()) {
+        throw std::runtime_error("Local set must contain at least one entry");
+    }
+    return set;
 }
 
 std::vector<uint8_t> encode_vtarget_series(const std::vector<VTargetPack>& packs) {
     std::vector<uint8_t> output;
+    std::set<uint64_t> seen_ids;
     for (const auto& pack : packs) {
-        auto pack_bytes = encode_ber_oid(pack.target_id);
+        if (!seen_ids.insert(pack.target_id).second) {
+            throw std::runtime_error("Duplicate targetId in vTarget series");
+        }
         auto set_bytes = pack.set.encode();
+        if (set_bytes.empty()) {
+            throw std::runtime_error("VTarget pack must include at least one TLV");
+        }
+        auto pack_bytes = encode_ber_oid(pack.target_id);
         pack_bytes.insert(pack_bytes.end(), set_bytes.begin(), set_bytes.end());
         auto len_bytes = misb::encode_ber_length(pack_bytes.size());
         output.insert(output.end(), len_bytes.begin(), len_bytes.end());
@@ -367,8 +463,13 @@ std::vector<uint8_t> encode_vtarget_series(const std::vector<VTargetPack>& packs
     return output;
 }
 
+std::vector<uint8_t> encode_vtarget_series(std::initializer_list<VTargetPack> packs) {
+    return encode_vtarget_series(std::vector<VTargetPack>(packs.begin(), packs.end()));
+}
+
 std::vector<VTargetPack> decode_vtarget_series(const std::vector<uint8_t>& bytes) {
     std::vector<VTargetPack> packs;
+    std::set<uint64_t> seen_ids;
     size_t offset = 0;
     while (offset < bytes.size()) {
         size_t pack_len = 0;
@@ -382,23 +483,59 @@ std::vector<VTargetPack> decode_vtarget_series(const std::vector<uint8_t>& bytes
         }
         std::vector<uint8_t> pack_data(bytes.begin() + static_cast<long>(offset),
                                        bytes.begin() + static_cast<long>(offset + pack_len));
+        if (pack_data.empty()) {
+            throw std::runtime_error("Empty vTarget pack");
+        }
         auto oid_info = decode_ber_oid(pack_data, 0, pack_data.size());
         uint64_t target_id = oid_info.first;
         size_t oid_len = oid_info.second;
-        if (oid_len > pack_data.size()) {
-            throw std::runtime_error("Invalid OID length in vTarget pack");
+        if (oid_len >= pack_data.size()) {
+            throw std::runtime_error("VTarget pack missing payload items");
+        }
+        if (!seen_ids.insert(target_id).second) {
+            throw std::runtime_error("Duplicate targetId encountered while decoding vTarget series");
         }
         std::vector<uint8_t> local_bytes(pack_data.begin() + static_cast<long>(oid_len),
                                          pack_data.end());
         KLVSet local(false, VTARGET_ST_ID);
         local.decode(local_bytes);
+        if (local.encode().empty()) {
+            throw std::runtime_error("VTarget pack contained no TLVs");
+        }
         VTargetPack pack;
         pack.target_id = target_id;
         pack.set = std::move(local);
         packs.push_back(std::move(pack));
         offset += pack_len;
     }
+    if (offset != bytes.size()) {
+        throw std::runtime_error("Excess bytes while decoding vTarget series");
+    }
     return packs;
+}
+
+std::vector<uint8_t> encode_algorithm_series(const std::vector<KLVSet>& sets) {
+    return encode_local_set_series(sets);
+}
+
+std::vector<uint8_t> encode_algorithm_series(std::initializer_list<KLVSet> sets) {
+    return encode_algorithm_series(std::vector<KLVSet>(sets.begin(), sets.end()));
+}
+
+std::vector<KLVSet> decode_algorithm_series(const std::vector<uint8_t>& bytes) {
+    return decode_local_set_series(bytes, ALGORITHM_ST_ID);
+}
+
+std::vector<uint8_t> encode_ontology_series(const std::vector<KLVSet>& sets) {
+    return encode_local_set_series(sets);
+}
+
+std::vector<uint8_t> encode_ontology_series(std::initializer_list<KLVSet> sets) {
+    return encode_ontology_series(std::vector<KLVSet>(sets.begin(), sets.end()));
+}
+
+std::vector<KLVSet> decode_ontology_series(const std::vector<uint8_t>& bytes) {
+    return decode_local_set_series(bytes, ONTOLOGY_ST_ID);
 }
 
 } // namespace st0903
