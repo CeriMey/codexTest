@@ -18,10 +18,6 @@ struct Detection {
     double status;
 };
 
-static double compute_pixel(double row, double column, double frameWidth) {
-    return column + ((row - 1.0) * frameWidth);
-}
-
 static double extract_value(const KLVSet& set, const UL& ul) {
     for (const auto& node : set.children()) {
         if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
@@ -40,10 +36,6 @@ static std::string extract_string(const KLVSet& set, const UL& ul) {
         }
     }
     return {};
-}
-
-static std::vector<uint8_t> ascii_bytes(const std::string& text) {
-    return std::vector<uint8_t>(text.begin(), text.end());
 }
 
 int main() {
@@ -76,10 +68,10 @@ int main() {
                   << " confidence " << d.confidence
                   << " status " << d.status << '\n';
         double algorithmRef = (d.id % 2 == 0) ? 2.0 : 1.0;
+        double centroidValue = misb::st0903::target_centroid_pixel(d.row, d.column, frameWidth);
         packs.push_back(KLV_VTARGET_PACK(
             d.id,
-            KLV_TAG(misb::st0903::VTARGET_CENTROID,
-                    compute_pixel(d.row, d.column, frameWidth)),
+            KLV_TAG(misb::st0903::VTARGET_CENTROID, centroidValue),
             KLV_TAG(misb::st0903::VTARGET_CENTROID_ROW, d.row),
             KLV_TAG(misb::st0903::VTARGET_CENTROID_COLUMN, d.column),
             KLV_TAG(misb::st0903::VTARGET_CONFIDENCE_LEVEL, d.confidence),
@@ -91,15 +83,15 @@ int main() {
     auto algorithmSeries = KLV_ALGORITHM_SERIES(
         KLV_ALGORITHM_SET(
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_ID, 1.0),
-            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, ascii_bytes("MotionNet")),
-            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_VERSION, ascii_bytes("2.1")),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, KLV_ASCII_BYTES("MotionNet")),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_VERSION, KLV_ASCII_BYTES("2.1")),
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CLASS, 3.0),
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CONFIDENCE, 0.95)
         ),
         KLV_ALGORITHM_SET(
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_ID, 2.0),
-            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, ascii_bytes("TrackerAI")),
-            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_VERSION, ascii_bytes("1.4")),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_NAME, KLV_ASCII_BYTES("TrackerAI")),
+            KLV_LOCAL_BYTES(misb::st0903::ALGORITHM_VERSION, KLV_ASCII_BYTES("1.4")),
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CLASS, 4.0),
             KLV_LOCAL_LEAF(misb::st0903::ALGORITHM_CONFIDENCE, 0.88)
         )
@@ -108,14 +100,14 @@ int main() {
     auto ontologySeries = KLV_ONTOLOGY_SERIES(
         KLV_ONTOLOGY_SET(
             KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_ID, 101.0),
-            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_URI, ascii_bytes("urn:example:vehicle")),
+            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_URI, KLV_ASCII_BYTES("urn:example:vehicle")),
             KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_CONFIDENCE, 0.82)
         ),
         KLV_ONTOLOGY_SET(
             KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_ID, 202.0),
-            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_URI, ascii_bytes("urn:example:person")),
+            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_URI, KLV_ASCII_BYTES("urn:example:person")),
             KLV_LOCAL_LEAF(misb::st0903::ONTOLOGY_CONFIDENCE, 0.91),
-            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_FAMILY, ascii_bytes("Human"))
+            KLV_LOCAL_BYTES(misb::st0903::ONTOLOGY_FAMILY, KLV_ASCII_BYTES("Human"))
         )
     );
 
@@ -149,10 +141,10 @@ int main() {
     std::cout << std::dec << '\n';
 
     // Decode
-    KLVSet decoded;
+    KLVSet decoded(false, misb::st0601::ST_ID);
     decoded.decode(bytes);
     std::cout << "\nDecoded UAV data:" << '\n';
-    KLVSet vmti_decoded;
+    KLVSet vmti_decoded(false, misb::st0903::ST_ID);
     for (const auto& node : decoded.children()) {
         if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
             const UL& ul = leaf->ul();
@@ -170,11 +162,26 @@ int main() {
         }
     }
 
-    std::cout << "Decoded detections:" << '\n';
+    std::cout << "Decoded VMTI local set (" << vmti_decoded.children().size()
+              << " entries):" << '\n';
     for (const auto& node : vmti_decoded.children()) {
-        if (auto bytesNode = std::dynamic_pointer_cast<KLVBytes>(node)) {
+        if (auto leaf = std::dynamic_pointer_cast<KLVLeaf>(node)) {
+            const UL& ul = leaf->ul();
+            if (ul == misb::st0903::VMTI_LS_VERSION) {
+                std::cout << "  LS Version: " << leaf->value() << '\n';
+            } else if (ul == misb::st0903::VMTI_TOTAL_TARGETS_DETECTED) {
+                std::cout << "  Total Targets Detected: " << leaf->value() << '\n';
+            } else if (ul == misb::st0903::VMTI_NUM_TARGETS_REPORTED) {
+                std::cout << "  Targets Reported: " << leaf->value() << '\n';
+            } else if (ul == misb::st0903::VMTI_FRAME_WIDTH) {
+                std::cout << "  Frame Width: " << leaf->value() << '\n';
+            } else if (ul == misb::st0903::VMTI_FRAME_HEIGHT) {
+                std::cout << "  Frame Height: " << leaf->value() << '\n';
+            }
+        } else if (auto bytesNode = std::dynamic_pointer_cast<KLVBytes>(node)) {
             if (bytesNode->ul() == misb::st0903::VMTI_VTARGET_SERIES) {
                 auto decodedPacks = misb::st0903::decode_vtarget_series(bytesNode->value());
+                std::cout << "  Detections:" << '\n';
                 for (const auto& pack : decodedPacks) {
                     double centroid = extract_value(pack.set, misb::st0903::VTARGET_CENTROID);
                     double row = extract_value(pack.set, misb::st0903::VTARGET_CENTROID_ROW);
@@ -182,8 +189,9 @@ int main() {
                     double conf = extract_value(pack.set, misb::st0903::VTARGET_CONFIDENCE_LEVEL);
                     double status = extract_value(pack.set, misb::st0903::VTARGET_DETECTION_STATUS);
                     double alg = extract_value(pack.set, misb::st0903::VTARGET_ALGORITHM_ID);
-                    std::cout << "  ID " << pack.target_id
-                              << " centroid " << centroid
+                    uint64_t centroidIndex = static_cast<uint64_t>(std::llround(centroid));
+                    std::cout << "    ID " << pack.target_id
+                              << " centroid " << centroidIndex
                               << " (row,col)=(" << row << ", " << col << ")"
                               << " confidence " << conf
                               << " status " << status
@@ -191,14 +199,14 @@ int main() {
                 }
             } else if (bytesNode->ul() == misb::st0903::VMTI_ALGORITHM_SERIES) {
                 auto algSets = misb::st0903::decode_algorithm_series(bytesNode->value());
-                std::cout << "Decoded algorithms:" << '\n';
+                std::cout << "  Algorithms:" << '\n';
                 for (const auto& set : algSets) {
                     double id = extract_value(set, misb::st0903::ALGORITHM_ID);
                     double algClass = extract_value(set, misb::st0903::ALGORITHM_CLASS);
                     double confidence = extract_value(set, misb::st0903::ALGORITHM_CONFIDENCE);
                     std::string name = extract_string(set, misb::st0903::ALGORITHM_NAME);
                     std::string version = extract_string(set, misb::st0903::ALGORITHM_VERSION);
-                    std::cout << "  Algorithm " << id
+                    std::cout << "    Algorithm " << id
                               << " (" << name;
                     if (!version.empty()) {
                         std::cout << " v" << version;
@@ -208,13 +216,13 @@ int main() {
                 }
             } else if (bytesNode->ul() == misb::st0903::VMTI_ONTOLOGY_SERIES) {
                 auto ontSets = misb::st0903::decode_ontology_series(bytesNode->value());
-                std::cout << "Decoded ontologies:" << '\n';
+                std::cout << "  Ontologies:" << '\n';
                 for (const auto& set : ontSets) {
                     double id = extract_value(set, misb::st0903::ONTOLOGY_ID);
                     double confidence = extract_value(set, misb::st0903::ONTOLOGY_CONFIDENCE);
                     std::string uri = extract_string(set, misb::st0903::ONTOLOGY_URI);
                     std::string family = extract_string(set, misb::st0903::ONTOLOGY_FAMILY);
-                    std::cout << "  Ontology " << id
+                    std::cout << "    Ontology " << id
                               << " uri " << uri
                               << " confidence " << confidence;
                     if (!family.empty()) {

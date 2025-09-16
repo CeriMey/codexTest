@@ -1,4 +1,5 @@
 #include "klv.h"
+#include "klv_macros.h"
 #include "st0601.h"
 #include "st0102.h"
 #include "st0903.h"
@@ -18,10 +19,6 @@ struct DetectionInfo {
     double confidence; // expressed as probability [0,1]
     double status;     // enumeration per ST0903
 };
-
-static double frame_pixel_index(double row, double column, double frameWidth) {
-    return column + ((row - 1.0) * frameWidth);
-}
 
 static double find_value(const KLVSet& set, const UL& ul) {
     for (const auto& node : set.children()) {
@@ -99,7 +96,8 @@ int main() {
         vtargetPacks.reserve(detections.size());
         for (const auto& detection : detections) {
             std::vector<stanag::TagValue> tags = {
-                {misb::st0903::VTARGET_CENTROID, frame_pixel_index(detection.row, detection.column, frameWidth)},
+                {misb::st0903::VTARGET_CENTROID,
+                 misb::st0903::target_centroid_pixel(detection.row, detection.column, frameWidth)},
                 {misb::st0903::VTARGET_CENTROID_ROW, detection.row},
                 {misb::st0903::VTARGET_CENTROID_COLUMN, detection.column},
                 {misb::st0903::VTARGET_CONFIDENCE_LEVEL, detection.confidence},
@@ -186,12 +184,13 @@ int main() {
                     auto decodedPacks = misb::st0903::decode_vtarget_series(bytesNode->value());
                     for (const auto& pack : decodedPacks) {
                         double centroidIndex = find_value(pack.set, misb::st0903::VTARGET_CENTROID);
+                        uint64_t centroidPixel = static_cast<uint64_t>(std::llround(centroidIndex));
                         double centroidRow = find_value(pack.set, misb::st0903::VTARGET_CENTROID_ROW);
                         double centroidCol = find_value(pack.set, misb::st0903::VTARGET_CENTROID_COLUMN);
                         double confidence = find_value(pack.set, misb::st0903::VTARGET_CONFIDENCE_LEVEL);
                         double status = find_value(pack.set, misb::st0903::VTARGET_DETECTION_STATUS);
                         std::cout << "    Target " << pack.target_id
-                                  << ": centroid index " << centroidIndex
+                                  << ": centroid index " << centroidPixel
                                   << ", row " << centroidRow
                                   << ", column " << centroidCol
                                   << ", confidence " << confidence
