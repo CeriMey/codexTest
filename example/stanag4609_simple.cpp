@@ -108,6 +108,9 @@ int main() {
     // Compose the STANAG 4609 packet (UAS LS version tag added automatically)
     auto packet = STANAG4609_PACKET(
         KLV_ST_ITEM(0601, UNIX_TIMESTAMP, 1700000000.0),
+        KLV_ST_ITEM(0601, PLATFORM_DESIGNATION, "FalconEye"),
+        KLV_ST_ITEM(0601, IMAGE_SOURCE_SENSOR, "EO/IR Sensor"),
+        KLV_ST_ITEM(0601, IMAGE_COORDINATE_SYSTEM, "WGS-84"),
         KLV_ST_ITEM(0601, SENSOR_LATITUDE, 48.8566),
         KLV_ST_ITEM(0601, SENSOR_LONGITUDE, 2.3522),
         KLV_TAG(misb::st0601::VMTI_LOCAL_SET, vmti)
@@ -136,11 +139,20 @@ int main() {
     decoded.decode(payload);
 
     double ts = 0.0, lat = 0.0, lon = 0.0, ver = 0.0;
+    std::string platformDesignation;
+    std::string imageSensor;
+    std::string coordSystem;
     ST_GET(decoded, 0601, UNIX_TIMESTAMP, ts);
+    platformDesignation = get_string(decoded, misb::st0601::PLATFORM_DESIGNATION);
+    imageSensor = get_string(decoded, misb::st0601::IMAGE_SOURCE_SENSOR);
+    coordSystem = get_string(decoded, misb::st0601::IMAGE_COORDINATE_SYSTEM);
     ST_GET(decoded, 0601, SENSOR_LATITUDE, lat);
     ST_GET(decoded, 0601, SENSOR_LONGITUDE, lon);
     ST_GET(decoded, 0601, UAS_LS_VERSION_NUMBER, ver);
     std::cout << "Decoded timestamp: " << ts << '\n';
+    std::cout << "Decoded platform designation: " << platformDesignation << '\n';
+    std::cout << "Decoded sensor: " << imageSensor << '\n';
+    std::cout << "Decoded coordinate system: " << coordSystem << '\n';
     std::cout << "Decoded sensor lat/lon: " << lat << ", " << lon << '\n';
     std::cout << "Decoded UAS LS version: " << ver << '\n';
 
