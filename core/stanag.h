@@ -62,4 +62,25 @@ KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul = true);
 // Assemble a complete STANAG 4609 packet with the outer UAS Datalink UL
 std::vector<uint8_t> create_stanag4609_packet(const std::vector<TagValue>& tags);
 
+class CompositeBuilder {
+public:
+    CompositeBuilder& add_numeric(const UL& ul, double value);
+    CompositeBuilder& add_bytes(const UL& ul, const std::vector<uint8_t>& bytes);
+    CompositeBuilder& add_string(const UL& ul, const std::string& text);
+    CompositeBuilder& add_cstring(const UL& ul, const char* text);
+    CompositeBuilder& add_dataset(const UL& ul,
+                                  const CompositeBuilder& builder,
+                                  bool use_ul = false);
+    CompositeBuilder& add_dataset(const UL& ul, const KLVSet& set);
+    CompositeBuilder& add_tag(const TagValue& tag);
+
+    const std::vector<TagValue>& items() const { return tags_; }
+
+    KLVSet as_dataset(bool use_ul = true) const;
+    std::vector<uint8_t> as_packet(bool ensure_version = true) const;
+
+private:
+    std::vector<TagValue> tags_;
+};
+
 } // namespace stanag

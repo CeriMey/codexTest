@@ -8,6 +8,8 @@
 #include <vector>
 #include <limits>
 #include <string>
+#include <fstream>
+#include <sstream>
 #include <cmath>
 
 static double get_value(const KLVSet& set, const UL& ul) {
@@ -38,17 +40,18 @@ int main() {
     const double frameWidth = 1920.0;
     const double frameHeight = 1080.0;
 
-    // Build a VMTI local set with 20 detections
+    const int detectionCount = 5;
     std::vector<misb::st0903::VTargetPack> packs;
-    packs.reserve(20);
-    for (int i = 1; i <= 20; ++i) {
-        double row = 100.0 + i * 5.0;
-        double col = 200.0 + i * 3.0;
-        double confidence = 0.4 + 0.01 * static_cast<double>(i);
-        double status = (i % 2 == 0) ? 1.0 : 0.0;
-        double algorithmRef = (i % 2 == 0) ? 2.0 : 1.0;
+    packs.reserve(detectionCount);
+    for (int i = 0; i < detectionCount; ++i) {
+        const int id = i + 1;
+        const double row = 95.0 + i * 4.5;
+        const double col = 185.0 + i * 3.5;
+        const double confidence = 0.45 + 0.05 * static_cast<double>(i);
+        const double status = (i % 2 == 0) ? 1.0 : 0.0;
+        const double algorithmRef = (i % 2 == 0) ? 2.0 : 1.0;
         packs.push_back(KLV_VTARGET_PACK(
-            i,
+            id,
             KLV_TAG(misb::st0903::VTARGET_CENTROID,
                     KLV_PIXEL_NUMBER(row, col, frameWidth)),
             KLV_TAG(misb::st0903::VTARGET_CENTROID_ROW, row),
@@ -93,47 +96,78 @@ int main() {
         )
     );
 
-    const double detectionCount = 20.0;
-    KLVSet vmti = KLV_LOCAL_DATASET(
-        KLV_TAG(misb::st0903::VMTI_LS_VERSION, 6.0),
-        KLV_TAG(misb::st0903::VMTI_TOTAL_TARGETS_DETECTED, detectionCount),
-        KLV_TAG(misb::st0903::VMTI_NUM_TARGETS_REPORTED, detectionCount),
-        KLV_TAG(misb::st0903::VMTI_FRAME_WIDTH, frameWidth),
-        KLV_TAG(misb::st0903::VMTI_FRAME_HEIGHT, frameHeight)
-    );
-    KLV_ADD_BYTES(vmti, misb::st0903::VMTI_VTARGET_SERIES, series);
-    KLV_ADD_BYTES(vmti, misb::st0903::VMTI_ALGORITHM_SERIES, algorithmSeries);
-    KLV_ADD_BYTES(vmti, misb::st0903::VMTI_ONTOLOGY_SERIES, ontologySeries);
+    const double detectionCountValue = static_cast<double>(detectionCount);
+    stanag::CompositeBuilder vmti_builder;
+    vmti_builder
+        .add_numeric(misb::st0903::VMTI_LS_VERSION, 6.0)
+        .add_numeric(misb::st0903::VMTI_TOTAL_TARGETS_DETECTED, detectionCountValue)
+        .add_numeric(misb::st0903::VMTI_NUM_TARGETS_REPORTED, detectionCountValue)
+        .add_numeric(misb::st0903::VMTI_FRAME_WIDTH, frameWidth)
+        .add_numeric(misb::st0903::VMTI_FRAME_HEIGHT, frameHeight)
+        .add_bytes(misb::st0903::VMTI_VTARGET_SERIES, series)
+        .add_bytes(misb::st0903::VMTI_ALGORITHM_SERIES, algorithmSeries)
+        .add_bytes(misb::st0903::VMTI_ONTOLOGY_SERIES, ontologySeries);
 
-    // Compose the STANAG 4609 packet (UAS LS version tag added automatically)
-    auto packet = STANAG4609_PACKET(
-        KLV_ST_ITEM(0601, UNIX_TIMESTAMP, 1700000000.0),
-        KLV_ST_ITEM(0601, PLATFORM_DESIGNATION, "FalconEye"),
-        KLV_ST_ITEM(0601, IMAGE_SOURCE_SENSOR, "EO/IR Sensor"),
-        KLV_ST_ITEM(0601, IMAGE_COORDINATE_SYSTEM, "WGS-84"),
-        KLV_ST_ITEM(0601, SENSOR_LATITUDE, 48.8566),
-        KLV_ST_ITEM(0601, SENSOR_LONGITUDE, 2.3522),
-        KLV_TAG(misb::st0601::VMTI_LOCAL_SET, vmti)
-    );
+    stanag::CompositeBuilder packet_builder;
+    packet_builder
+        .add_numeric(misb::st0601::UNIX_TIMESTAMP, 1700000000.0)
+        .add_string(misb::st0601::PLATFORM_DESIGNATION, "FalconEye")
+        .add_string(misb::st0601::IMAGE_SOURCE_SENSOR, "EO/IR Sensor")
+        .add_string(misb::st0601::IMAGE_COORDINATE_SYSTEM, "WGS-84")
+        .add_numeric(misb::st0601::SENSOR_LATITUDE, 48.8566)
+        .add_numeric(misb::st0601::SENSOR_LONGITUDE, 2.3522)
+        .add_dataset(misb::st0601::VMTI_LOCAL_SET, vmti_builder);
 
-    std::cout << "Encoded packet:";
-    for (uint8_t b : packet) {
-        std::cout << ' ' << std::hex << std::setw(2) << std::setfill('0')
-                  << static_cast<int>(b);
+    auto packet = packet_builder.as_packet();
+
+    std::ofstream logFile("stanag4609_simple.log", std::ios::trunc);
+    if (!logFile) {
+        std::cerr << "Warning: could not open stanag4609_simple.log for writing" << '\n';
     }
-    std::cout << std::dec << '\n';
+    auto log_line = [&](const std::string& line) {
+        std::cout << line << '\n';
+        if (logFile) {
+            logFile << line << '\n';
+        }
+    };
+    auto log_hex = [&](const std::string& label, const std::vector<uint8_t>& data) {
+        std::ostringstream oss;
+        oss << label;
+        for (uint8_t b : data) {
+            oss << ' ' << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(b);
+        }
+        log_line(oss.str());
+    };
+
+    log_hex("Encoded packet:", packet);
 
     // Decode the packet: skip the 16-byte UL and BER length
-    if (packet.size() <= 16) return 0;
+    if (packet.size() <= 16) {
+        log_line("Packet too small to decode.");
+        return 0;
+    }
     size_t payload_len = 0, len_bytes = 0;
-    if (!misb::decode_ber_length(packet, 16, payload_len, len_bytes)) return 0;
-    if (packet.size() < 16 + len_bytes + payload_len) return 0;
+    if (!misb::decode_ber_length(packet, 16, payload_len, len_bytes)) {
+        log_line("Failed to decode packet BER length.");
+        return 0;
+    }
+    if (packet.size() < 16 + len_bytes + payload_len) {
+        log_line("Packet length shorter than declared payload.");
+        return 0;
+    }
     std::vector<uint8_t> payload(packet.begin() + 16 + len_bytes,
                                  packet.begin() + 16 + len_bytes + payload_len);
     // Verify checksum
     uint16_t crc_stored = (static_cast<uint16_t>(packet[packet.size()-2]) << 8) | packet.back();
     uint16_t crc_calc = misb::klv_checksum_16(std::vector<uint8_t>(packet.begin(), packet.end()-2));
-    if (crc_stored != crc_calc) return 0;
+    if (crc_stored != crc_calc) {
+        std::ostringstream crc_msg;
+        crc_msg << "CRC mismatch: stored 0x" << std::hex << std::setw(4) << std::setfill('0')
+                << crc_stored << " calculated 0x" << std::setw(4) << crc_calc;
+        log_line(crc_msg.str());
+        return 0;
+    }
     payload.resize(payload.size()-4);
     KLVSet decoded(false, misb::st0601::ST_ID);
     decoded.decode(payload);
@@ -149,17 +183,41 @@ int main() {
     ST_GET(decoded, 0601, SENSOR_LATITUDE, lat);
     ST_GET(decoded, 0601, SENSOR_LONGITUDE, lon);
     ST_GET(decoded, 0601, UAS_LS_VERSION_NUMBER, ver);
-    std::cout << "Decoded timestamp: " << ts << '\n';
-    std::cout << "Decoded platform designation: " << platformDesignation << '\n';
-    std::cout << "Decoded sensor: " << imageSensor << '\n';
-    std::cout << "Decoded coordinate system: " << coordSystem << '\n';
-    std::cout << "Decoded sensor lat/lon: " << lat << ", " << lon << '\n';
-    std::cout << "Decoded UAS LS version: " << ver << '\n';
+    {
+        std::ostringstream msg;
+        msg << "Decoded timestamp: " << ts;
+        log_line(msg.str());
+    }
+    {
+        std::ostringstream msg;
+        msg << "Decoded platform designation: " << platformDesignation;
+        log_line(msg.str());
+    }
+    {
+        std::ostringstream msg;
+        msg << "Decoded sensor: " << imageSensor;
+        log_line(msg.str());
+    }
+    {
+        std::ostringstream msg;
+        msg << "Decoded coordinate system: " << coordSystem;
+        log_line(msg.str());
+    }
+    {
+        std::ostringstream msg;
+        msg << "Decoded sensor lat/lon: " << lat << ", " << lon;
+        log_line(msg.str());
+    }
+    {
+        std::ostringstream msg;
+        msg << "Decoded UAS LS version: " << ver;
+        log_line(msg.str());
+    }
 
     // Extract the VMTI detections
     KLVSet vmti_decoded(false, misb::st0903::ST_ID);
     KLV_GET_SET(decoded, misb::st0601::VMTI_LOCAL_SET, vmti_decoded);
-    std::cout << "Decoded detections:\n";
+    log_line("Decoded detections:");
     for (const auto& node : vmti_decoded.children()) {
         if (auto bytesNode = std::dynamic_pointer_cast<KLVBytes>(node)) {
             if (bytesNode->ul() == misb::st0903::VMTI_VTARGET_SERIES) {
@@ -172,45 +230,50 @@ int main() {
                     double status = get_value(pack.set, misb::st0903::VTARGET_DETECTION_STATUS);
                     double algorithm = get_value(pack.set, misb::st0903::VTARGET_ALGORITHM_ID);
                     uint64_t centroidIndex = static_cast<uint64_t>(std::llround(centroid));
-                    std::cout << "  ID " << pack.target_id
-                              << " centroid " << centroidIndex
-                              << " (row,col)=(" << row << ", " << col << ")"
-                              << " conf " << conf
-                              << " status " << status
-                              << " algorithm " << algorithm << '\n';
+                    std::ostringstream msg;
+                    msg << "  ID " << pack.target_id
+                        << " centroid " << centroidIndex
+                        << " (row,col)=(" << row << ", " << col << ")"
+                        << " conf " << conf
+                        << " status " << status
+                        << " algorithm " << algorithm;
+                    log_line(msg.str());
                 }
             } else if (bytesNode->ul() == misb::st0903::VMTI_ALGORITHM_SERIES) {
                 auto decodedAlgorithms = misb::st0903::decode_algorithm_series(bytesNode->value());
-                std::cout << "Algorithms:\n";
+                log_line("Algorithms:");
                 for (const auto& algSet : decodedAlgorithms) {
                     double algId = get_value(algSet, misb::st0903::ALGORITHM_ID);
                     double algClass = get_value(algSet, misb::st0903::ALGORITHM_CLASS);
                     double algConfidence = get_value(algSet, misb::st0903::ALGORITHM_CONFIDENCE);
                     std::string algName = get_string(algSet, misb::st0903::ALGORITHM_NAME);
                     std::string algVersion = get_string(algSet, misb::st0903::ALGORITHM_VERSION);
-                    std::cout << "  Algorithm " << algId
-                              << " (" << algName;
+                    std::ostringstream msg;
+                    msg << "  Algorithm " << algId
+                        << " (" << algName;
                     if (!algVersion.empty()) {
-                        std::cout << " v" << algVersion;
+                        msg << " v" << algVersion;
                     }
-                    std::cout << ") class " << algClass
-                              << " confidence " << algConfidence << '\n';
+                    msg << ") class " << algClass
+                        << " confidence " << algConfidence;
+                    log_line(msg.str());
                 }
             } else if (bytesNode->ul() == misb::st0903::VMTI_ONTOLOGY_SERIES) {
                 auto decodedOntologies = misb::st0903::decode_ontology_series(bytesNode->value());
-                std::cout << "Ontologies:\n";
+                log_line("Ontologies:");
                 for (const auto& ontSet : decodedOntologies) {
                     double ontId = get_value(ontSet, misb::st0903::ONTOLOGY_ID);
                     double ontConfidence = get_value(ontSet, misb::st0903::ONTOLOGY_CONFIDENCE);
                     std::string ontUri = get_string(ontSet, misb::st0903::ONTOLOGY_URI);
                     std::string ontFamily = get_string(ontSet, misb::st0903::ONTOLOGY_FAMILY);
-                    std::cout << "  Ontology " << ontId
-                              << " uri " << ontUri
-                              << " confidence " << ontConfidence;
+                    std::ostringstream msg;
+                    msg << "  Ontology " << ontId
+                        << " uri " << ontUri
+                        << " confidence " << ontConfidence;
                     if (!ontFamily.empty()) {
-                        std::cout << " family " << ontFamily;
+                        msg << " family " << ontFamily;
                     }
-                    std::cout << '\n';
+                    log_line(msg.str());
                 }
             }
         }
