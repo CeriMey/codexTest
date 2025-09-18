@@ -9,10 +9,18 @@ KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul) {
     if (!tags.empty()) st_id = tags[0].ul[12];
     KLVSet set(use_ul, st_id);
     for (const auto& t : tags) {
-        if (t.set) {
-            set.add(std::make_shared<KLVBytes>(t.ul, t.set->encode(), !use_ul));
-        } else {
+        switch (t.kind) {
+        case TagValue::Kind::Numeric:
             set.add(std::make_shared<KLVLeaf>(t.ul, t.value, !use_ul));
+            break;
+        case TagValue::Kind::Dataset:
+            if (t.set) {
+                set.add(std::make_shared<KLVBytes>(t.ul, t.set->encode(), !use_ul));
+            }
+            break;
+        case TagValue::Kind::Bytes:
+            set.add(std::make_shared<KLVBytes>(t.ul, t.bytes, !use_ul));
+            break;
         }
     }
     return set;
