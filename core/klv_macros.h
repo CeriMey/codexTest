@@ -86,6 +86,11 @@ inline double target_centroid_pixel(double row,
 #define KLV_LOCAL_LEAF(tag, value) std::make_shared<KLVLeaf>(tag, value, true)
 #define KLV_LOCAL_BYTES(tag, bytes) std::make_shared<KLVBytes>(tag, bytes, true)
 
+// Convenience helpers for building nodes that use global UL keys.
+// These mirror the local variants above but keep the default UL-based encoding.
+#define KLV_LEAF(tag, value) std::make_shared<KLVLeaf>(tag, value)
+#define KLV_BYTES(tag, bytes) std::make_shared<KLVBytes>(tag, bytes)
+
 #define KLV_VTARGET_SERIES(...) misb::st0903::encode_vtarget_series({__VA_ARGS__})
 #define KLV_ALGORITHM_SET(...) \
     misb::st0903::make_local_set(misb::st0903::ALGORITHM_ST_ID, {__VA_ARGS__})
