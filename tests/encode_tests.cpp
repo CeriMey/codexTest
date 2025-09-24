@@ -189,6 +189,9 @@ int main() {
     // STANAG 4609 packet assembly
     auto packet = STANAG4609_PACKET(
         KLV_ST_ITEM(0601, UNIX_TIMESTAMP, 1700000000.0),
+        KLV_ST_ITEM(0601, PLATFORM_DESIGNATION, "FalconEye"),
+        KLV_ST_ITEM(0601, IMAGE_SOURCE_SENSOR, "EO/IR"),
+        KLV_ST_ITEM(0601, IMAGE_COORDINATE_SYSTEM, "WGS-84"),
         KLV_ST_ITEM(0601, SENSOR_LATITUDE, 48.0),
         KLV_ST_ITEM(0601, SENSOR_LONGITUDE, 2.0)
     );
@@ -214,14 +217,75 @@ int main() {
     KLVSet decoded(false, misb::st0601::ST_ID);
     decoded.decode(payload);
     double ts = 0.0, flat = 0.0, flon = 0.0, ver = 0.0;
+    std::string platform;
+    std::string sensor;
+    std::string coord;
     ST_GET(decoded, 0601, UNIX_TIMESTAMP, ts);
     ST_GET(decoded, 0601, SENSOR_LATITUDE, flat);
     ST_GET(decoded, 0601, SENSOR_LONGITUDE, flon);
     ST_GET(decoded, 0601, UAS_LS_VERSION_NUMBER, ver);
+    for (const auto& node : decoded.children()) {
+        if (auto bytes = std::dynamic_pointer_cast<KLVBytes>(node)) {
+            if (bytes->ul() == misb::st0601::PLATFORM_DESIGNATION) {
+                platform.assign(bytes->value().begin(), bytes->value().end());
+            } else if (bytes->ul() == misb::st0601::IMAGE_SOURCE_SENSOR) {
+                sensor.assign(bytes->value().begin(), bytes->value().end());
+            } else if (bytes->ul() == misb::st0601::IMAGE_COORDINATE_SYSTEM) {
+                coord.assign(bytes->value().begin(), bytes->value().end());
+            }
+        }
+    }
     assert(std::fabs(ts - 1700000000.0) < 1e-3);
     assert(std::fabs(flat - 48.0) < 1e-6);
     assert(std::fabs(flon - 2.0) < 1e-6);
     assert(std::fabs(ver - 12.0) < 1e-6);
+    assert(platform == "FalconEye");
+    assert(sensor == "EO/IR");
+    assert(coord == "WGS-84");
+
+    stanag::CompositeBuilder composite_builder;
+    composite_builder
+        .add_numeric(misb::st0601::UNIX_TIMESTAMP, 1700000000.0)
+        .add_string(misb::st0601::PLATFORM_DESIGNATION, "FalconEye")
+        .add_string(misb::st0601::IMAGE_SOURCE_SENSOR, "EO/IR")
+        .add_string(misb::st0601::IMAGE_COORDINATE_SYSTEM, "WGS-84")
+        .add_numeric(misb::st0601::SENSOR_LATITUDE, 48.0)
+        .add_numeric(misb::st0601::SENSOR_LONGITUDE, 2.0);
+    auto composite_packet = composite_builder.as_packet();
+    assert(composite_packet == packet);
+
+    KLVSet composite_set = composite_builder.as_dataset(false);
+    double composite_lat = 0.0;
+    ST_GET(composite_set, 0601, SENSOR_LATITUDE, composite_lat);
+    assert(std::fabs(composite_lat - 48.0) < 1e-6);
+
+    stanag::CompositeBuilder vmti_composite;
+    vmti_composite
+        .add_numeric(misb::st0903::VMTI_LS_VERSION, 6.0)
+        .add_numeric(misb::st0903::VMTI_FRAME_WIDTH, 640.0)
+        .add_numeric(misb::st0903::VMTI_FRAME_HEIGHT, 360.0);
+    stanag::CompositeBuilder with_vmti;
+    with_vmti
+        .add_numeric(misb::st0601::UNIX_TIMESTAMP, 99.0)
+        .add_dataset(misb::st0601::VMTI_LOCAL_SET, vmti_composite);
+    KLVSet with_vmti_set = with_vmti.as_dataset(false);
+    bool found_vmti = false;
+    for (const auto& node : with_vmti_set.children()) {
+        if (auto bytes = std::dynamic_pointer_cast<KLVBytes>(node)) {
+            if (bytes->ul() == misb::st0601::VMTI_LOCAL_SET) {
+                found_vmti = true;
+                KLVSet nested(false, misb::st0903::ST_ID);
+                nested.decode(bytes->value());
+                double nested_width = 0.0;
+                double nested_height = 0.0;
+                ST_GET(nested, 0903, VMTI_FRAME_WIDTH, nested_width);
+                ST_GET(nested, 0903, VMTI_FRAME_HEIGHT, nested_height);
+                assert(std::fabs(nested_width - 640.0) < 1e-6);
+                assert(std::fabs(nested_height - 360.0) < 1e-6);
+            }
+        }
+    }
+    assert(found_vmti);
 
     // Test BER long-form length for tag-based items
     std::vector<uint8_t> big_vec(130, 0xAB);
