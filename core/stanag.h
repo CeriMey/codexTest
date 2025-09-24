@@ -4,6 +4,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace stanag {
@@ -61,6 +62,15 @@ KLVSet create_dataset(const std::vector<TagValue>& tags, bool use_ul = true);
 
 // Assemble a complete STANAG 4609 packet with the outer UAS Datalink UL
 std::vector<uint8_t> create_stanag4609_packet(const std::vector<TagValue>& tags);
+
+template <typename... TagValues>
+std::vector<uint8_t> create_stanag4609_packet_variadic(TagValues&&... tag_values) {
+    std::vector<TagValue> tags;
+    tags.reserve(sizeof...(tag_values));
+    int unused[] = {(tags.push_back(std::forward<TagValues>(tag_values)), 0)...};
+    (void)unused;
+    return create_stanag4609_packet(tags);
+}
 
 class CompositeBuilder {
 public:
